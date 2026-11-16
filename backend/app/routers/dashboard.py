@@ -109,11 +109,36 @@ def dashboard(user: dict = Depends(require("admin", "finance", "accountant", "ce
     recent = [audit_dict(a) for a in db.execute(
         select(models.AuditLog).order_by(models.AuditLog.id.desc()).limit(10)).scalars()]
 
+    # خلاصه خدمات اعضا و جبران خدمات
+    svc_rows = db.execute(select(models.Service)).scalars().all()
+    pending_svc = [s for s in svc_rows if s.status in ("draft", "pending")]
+
+    # فهرست مصوبه‌های تأمین مالی برای دریل‌داون داشبورد
+    fundings_out = []
+    for f in fundings:
+        f_collected = 0
+        for c in db.execute(select(models.Commitment).where(
+                models.Commitment.funding_id == f.id)).scalars():
+            f_collected += commitment_paid_actual(db, c)
+        fundings_out.append({
+            "id": f.id, "no": f.no, "title": f.title, "amount": f.amount,
+            "collected": f_collected, "remaining": max(f.amount - f_collected, 0),
+            "progress": int(f_collected * 100 / f.amount) if f.amount else 0,
+            "due_date": f.due_date or "",
+        })
+    fundings_out.sort(key=lambda x: -x["id"])
+
     return {
         "cash_total": cash_total, "cash_detail": [{"code": k, "amount": v} for k, v in cash.items()],
         "pnl_year": pnl_year,
         "funding": {"approved_amount": approved_amount, "collected": collected,
                     "remaining": commitments_remaining},
+        "fundings": fundings_out,
+        "services": {
+            "pending_count": len(pending_svc),
+            "pending_amount": sum(s.amount for s in pending_svc),
+            "compensated_amount": sum(s.amount for s in svc_rows if s.status == "compensated"),
+        },
         "unpaid_expenses": unpaid,
         "members": members_rows,
         "monthly": monthly, "categories": categories[:7], "projects": projects,

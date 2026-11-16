@@ -13,7 +13,7 @@ globalThis.btoa = (s) => Buffer.from(s, 'binary').toString('base64')
 globalThis.atob = (s) => Buffer.from(s, 'base64').toString('binary')
 globalThis.__PORTABLE__ = true
 
-const BASE = '/home/z/my-project/download/samane-maliyar/frontend/src'
+const BASE = new URL('../frontend/src', import.meta.url).pathname
 const { localCall, resetDB } = await import(`${BASE}/api/local/index.js`)
 
 let pass = 0, fail = 0

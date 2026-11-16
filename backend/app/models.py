@@ -47,7 +47,16 @@ class Setting(Base):
     __tablename__ = "settings"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
     company_name: Mapped[str] = mapped_column(String(200), default="شرکت نمونه")
+    company_name_en: Mapped[str] = mapped_column(String(120), default="")  # نام برند/لاتین
     company_national_id: Mapped[str] = mapped_column(String(30), default="")
+    company_reg_no: Mapped[str] = mapped_column(String(40), default="")   # شماره ثبت
+    company_economic_code: Mapped[str] = mapped_column(String(40), default="")  # کد اقتصادی
+    company_activity: Mapped[str] = mapped_column(String(250), default="")  # موضوع فعالیت
+    company_address: Mapped[str] = mapped_column(String(300), default="")
+    company_phone: Mapped[str] = mapped_column(String(60), default="")
+    company_email: Mapped[str] = mapped_column(String(120), default="")
+    company_website: Mapped[str] = mapped_column(String(120), default="")
+    company_logo: Mapped[str] = mapped_column(Text, default="")  # آرم شرکت — dataURL تصویر
     currency_display: Mapped[str] = mapped_column(String(10), default="toman")  # toman | rial
     member_sees_all_expenses: Mapped[bool] = mapped_column(Boolean, default=False)
     auto_offset: Mapped[bool] = mapped_column(Boolean, default=True)  # تهاتر خودکار پرداخت عضو با تعهد
@@ -264,11 +273,11 @@ class Allocation(Base):
 
 
 class OffsetCredit(Base):
-    """اعتبار عضو بابت هزینه‌ای که از جیب شخصی برای شرکت پرداخت کرده (قابل تهاتر با تعهد)"""
+    """اعتبار عضو — بابت هزینه پرداخت‌شده از جیب شخصی یا جبران خدمات (قابل تهاتر با تعهد)"""
     __tablename__ = "offset_credits"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     member_id: Mapped[int] = mapped_column(Integer, ForeignKey("members.id"))
-    expense_id: Mapped[int] = mapped_column(Integer, ForeignKey("expenses.id"))
+    expense_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("expenses.id"), nullable=True)  # برای اعتبار جبران خدمات خالی است
     amount: Mapped[int] = mapped_column(BigInteger)
     remaining: Mapped[int] = mapped_column(BigInteger, default=0)
     note: Mapped[str] = mapped_column(Text, default="")
@@ -308,6 +317,58 @@ class VLine(Base):
     description: Mapped[str] = mapped_column(String(250), default="")
     project_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     voucher: Mapped[Voucher] = relationship(back_populates="lines")
+
+
+class Service(Base):
+    """خدمات اعضا و جبران خدمات — مبلغ = تعداد × نرخ؛ گردش تأیید مدیرعامل"""
+    __tablename__ = "services"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    no: Mapped[str] = mapped_column(String(30), unique=True)
+    member_id: Mapped[int] = mapped_column(Integer, ForeignKey("members.id"))
+    sdate: Mapped[str] = mapped_column(String(10))  # تاریخ ارائه خدمت
+    stype: Mapped[str] = mapped_column(String(20), default="other")  # tech|legal|accounting|design|consult|other
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
+    qty: Mapped[int] = mapped_column(BigInteger, default=0)
+    unit: Mapped[str] = mapped_column(String(20), default="ساعت")
+    unit_price: Mapped[int] = mapped_column(BigInteger, default=0)
+    amount: Mapped[int] = mapped_column(BigInteger, default=0)
+    calc_note: Mapped[str] = mapped_column(String(300), default="")  # ملاک محاسبه نرخ
+    status: Mapped[str] = mapped_column(String(12), default="draft")  # draft|pending|compensated|rejected
+    comp_method: Mapped[str | None] = mapped_column(String(10), nullable=True)  # credit|cash
+    comp_date: Mapped[str] = mapped_column(String(10), default="")
+    comp_note: Mapped[str] = mapped_column(String(300), default="")
+    voucher_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    credit_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_by: Mapped[str] = mapped_column(String(60), default="")
+    approved_by: Mapped[str] = mapped_column(String(60), default="")
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class WalletTx(Base):
+    """تراکنش‌های کیف پول اعضا — شارژ (درگاه/دستی) و تسویه تعهدات از موجودی"""
+    __tablename__ = "wallet_tx"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    no: Mapped[str] = mapped_column(String(30), unique=True)
+    wdate: Mapped[str] = mapped_column(String(10))
+    member_id: Mapped[int] = mapped_column(Integer, ForeignKey("members.id"))
+    type: Mapped[str] = mapped_column(String(10), default="charge")  # charge | settle | spend
+    amount: Mapped[int] = mapped_column(BigInteger)
+    method: Mapped[str] = mapped_column(String(10), default="manual")  # manual | gateway | wallet
+    gateway: Mapped[str | None] = mapped_column(String(20), nullable=True)  # melli | ...
+    bank_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # حساب مقصد واریز دستی
+    tracking_no: Mapped[str] = mapped_column(String(60), default="")
+    gateway_ref: Mapped[str] = mapped_column(String(60), default="")
+    note: Mapped[str] = mapped_column(Text, default="")
+    purpose: Mapped[str | None] = mapped_column(String(20), nullable=True)  # commitment | ...
+    commitment_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # پرداخت مستقیم تعهد از کارتابل
+    status: Mapped[str] = mapped_column(String(12), default="pending")  # pending|approved|rejected|failed
+    approved_by: Mapped[str] = mapped_column(String(60), default="")
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    voucher_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_by: Mapped[str] = mapped_column(String(60), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
 
 class AuditLog(Base):

@@ -44,6 +44,12 @@ def login(body: LoginBody, db: Session = Depends(get_db)):
         "has_pin": bool(user.pin_hash)}}
 
 
+@router.post("/logout")
+def logout(user: dict = Depends(get_current_user)):
+    """پایان نشست — توکن‌ها سمت کلاینت حذف می‌شوند؛ برای هم‌خوانی پرتیبل/سرور موجود است"""
+    return {"ok": True}
+
+
 @router.get("/me")
 def me(user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     u = db.get(models.User, user["id"])

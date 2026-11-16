@@ -56,7 +56,12 @@ const JMONTH = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', '�
 export function seedDemo (db) {
   const [fs, fe] = fiscalYearRange(1405)
   db.settings = {
-    id: 1, company_name: 'شرکت مه‌آی (MahAI)', company_national_id: '1400شخصی—در تنظیمات اصلاح شود',
+    id: 1, company_name: 'شرکت مه‌آی (MahAI)', company_name_en: 'MahAI',
+    company_national_id: '1400شخصی — در تنظیمات اصلاح شود',
+    company_reg_no: '', company_economic_code: '',
+    company_activity: 'توسعه پلتفرم‌های آموزشی و نرم‌افزاری (درسیار۳۶۰، برنامه‌یار۳۶۰، دانش‌جویار۳۶۰، MahAI)',
+    company_address: '', company_phone: '', company_email: 'info@mahai.ir',
+    company_website: 'MahAI.ir', company_logo: '',
     currency_display: 'toman', member_sees_all_expenses: false, auto_offset: true,
     fiscal_label: '1405', fiscal_start: fs, fiscal_end: fe,
     period_closed: false, secret: 'portable-' + Math.random().toString(36).slice(2),

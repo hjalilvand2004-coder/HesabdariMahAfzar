@@ -8,7 +8,7 @@ os.environ["SAMANE_UPLOADS"] = "/tmp/samane-uploads"
 if os.path.exists("/tmp/samane-test.db"):
     os.remove("/tmp/samane-test.db")
 
-sys.path.insert(0, "/home/z/my-project/download/samane-maliyar/backend")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "backend"))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -55,9 +55,9 @@ with TestClient(app) as c:
     print(f"    نقد و بانک: {d['cash_total']:,} | سود سال: {d['pnl_year']['profit']:,}")
     check("اعضای داشبورد ۳ سهامدار", len([m for m in d["members"] if m["commitment"] > 0]) == 3)
     total_commit = sum(m["commitment"] for m in d["members"])
-    check("مجموع تعهدات = ۲ میلیارد ریال", total_commit == 2_000_000_000, f"={total_commit:,}")
+    check("مجموع تعهدات = ۳۰۰ میلیون ریال", total_commit == 300_000_000, f"={total_commit:,}")
     total_paid = sum(m["paid"] for m in d["members"])
-    check("مجموع وصول = ۱.۸۵ میلیارد", total_paid == 1_850_000_000, f"={total_paid:,}")
+    check("مجموع وصول = ۲۲۰ میلیون ریال (پرداخت + تهاتر مهر و خدمات)", total_paid == 220_000_000, f"={total_paid:,}")
 
     print("\n== ۳) ثبت و تأیید هزینه جدید ==")
     body = {"exp_date": "2026-11-10", "title": "تست هزینه دوبل", "base_amount": 12345678,
@@ -86,7 +86,7 @@ with TestClient(app) as c:
     check("ویرایش هزینه تأییدشده ممنوع", r.status_code == 400)
 
     print("\n== ۴) کنترل فاکتور تکراری ==")
-    r = api(c, acc, "GET", "/api/expenses/dupcheck?invoice_no=INV-4521")
+    r = api(c, acc, "GET", "/api/expenses/dupcheck?invoice_no=HOST-140502")
     check("تشخیص فاکتور تکراری", len(r.json()["duplicates"]) >= 1)
 
     print("\n== ۵) درخواست تأمین مالی و کنترل گرد کردن ==")
@@ -168,7 +168,7 @@ with TestClient(app) as c:
     check("دفتر روزنامه دارای ردیف", len(r.json()) > 20)
     r = api(c, fin, "GET", "/api/reports/general")
     check("دفتر کل محاسبه شد", len(r.json()) > 5)
-    r = api(c, fin, "GET", "/api/reports/moin/51011")
+    r = api(c, fin, "GET", "/api/reports/moin/51101")
     check("دفتر معین با مانده تجمعی", len(r.json()) > 0 and "balance" in r.json()[0])
 
     print("\n== ۹) کنترل‌های اسناد ==")
@@ -230,6 +230,119 @@ with TestClient(app) as c:
 
     r = api(c, fin, "GET", "/api/reports/member-settlement")
     check("گزارش تسویه اعضا", len(r.json()) >= 4)
+
+    print("\n== ۱۳) خدمات اعضا و جبران خدمات ==")
+    r = api(c, fin, "GET", "/api/services")
+    check("فهرست خدمات اولیه", r.status_code == 200 and len(r.json()) >= 3)
+    r = api(c, fin, "POST", "/api/services",
+            {"member_id": 1, "sdate": "2026-11-15", "stype": "tech",
+             "title": "خدمت تست", "qty": 3, "unit": "ساعت", "unit_price": 2_000_000,
+             "calc_note": "۳ × ۲۰۰ هزار تومان"})
+    check("ثبت خدمت جدید", r.status_code == 200, r.text[:200])
+    svc = r.json()
+    check("مبلغ خدمت = تعداد × نرخ", svc["amount"] == 6_000_000)
+    check("شماره خدمت SV", svc["no"].startswith("SV-"))
+    r = api(c, fin, "PATCH", f"/api/services/{svc['id']}",
+            {"member_id": 1, "sdate": "2026-11-15", "stype": "tech",
+             "title": "خدمت تست ویرایش", "qty": 4, "unit": "ساعت", "unit_price": 2_000_000})
+    check("ویرایش پیش‌نویس خدمت", r.status_code == 200 and r.json()["amount"] == 8_000_000)
+    r = api(c, ceo, "POST", f"/api/services/{svc['id']}/submit", {}, expect=403)
+    check("مدیرعامل اجازه ارسال ندارد", r.status_code == 403)
+    r = api(c, fin, "POST", f"/api/services/{svc['id']}/submit")
+    check("ارسال خدمت برای تأیید", r.status_code == 200)
+    r = api(c, fin, "POST", f"/api/services/{svc['id']}/approve",
+            {"comp_method": "credit"}, expect=403)
+    check("مدیر مالی اجازه تأیید جبران ندارد (فقط مدیرعامل)", r.status_code == 403)
+    r = api(c, ceo, "POST", f"/api/services/{svc['id']}/approve",
+            {"comp_method": "credit", "comp_date": "2026-11-16"})
+    check("تأیید و جبران اعتباری توسط مدیرعامل", r.status_code == 200, r.text[:300])
+    check("وضعیت جبران‌شده", r.json()["status"] == "compensated")
+    r = api(c, ceo, "GET", "/api/vouchers?source_type=service")
+    v_svc = [v for v in r.json() if v["source_id"] == svc["id"] and v["source_type"] == "service"]
+    check("سند خودکار جبران خدمات", len(v_svc) == 1 and v_svc[0]["total_debit"] == 8_000_000)
+    r = api(c, ali, "GET", "/api/members/1/statement")
+    stt = r.json()
+    check("خدمات در وضعیت حساب عضو", any(s["id"] == svc["id"] for s in stt["services"]))
+    check("اعتبار جبران خدمات ثبت شد", stt["totals"]["services_credit"] >= 8_000_000)
+    check("تراز نهایی در خروجی", "net_balance" in stt["totals"])
+    # رد خدمت
+    r = api(c, fin, "POST", "/api/services", {"member_id": 2, "sdate": "2026-11-15",
+            "stype": "other", "title": "خدمت ردشدنی", "qty": 1, "unit": "مورد", "unit_price": 100_000})
+    svc2 = r.json()["id"]
+    api(c, fin, "POST", f"/api/services/{svc2}/submit")
+    r = api(c, ceo, "POST", f"/api/services/{svc2}/approve", {"decision": "reject", "note": "تست"})
+    check("رد خدمت توسط مدیرعامل", r.status_code == 200 and r.json()["status"] == "rejected")
+
+    print("\n== ۱۴) کیف پول اعضا و درگاه ==")
+    r = api(c, fin, "GET", "/api/wallet")
+    check("فهرست کیف پول‌ها", r.status_code == 200 and len(r.json()["members"]) >= 4)
+    r = api(c, ali, "POST", "/api/wallet/charge",
+            {"amount": 3_000_000, "wdate": "2026-11-16", "method": "manual", "bank_id": 1})
+    check("اعلام شارژ دستی", r.status_code == 200, r.text[:200])
+    wtx = r.json()
+    r = api(c, ali, "POST", f"/api/wallet/charges/{wtx['id']}/approve", {}, expect=403)
+    check("عضو اجازه تأیید شارژ ندارد", r.status_code == 403)
+    r = api(c, fin, "POST", f"/api/wallet/charges/{wtx['id']}/approve", {"decision": "approve"})
+    check("تأیید شارژ توسط مدیر مالی", r.status_code == 200 and r.json()["balance"] == 23_000_000, r.text[:300])
+    r = api(c, ali, "POST", "/api/wallet/settle", {})
+    check("تسویه تعهد از کیف پول", r.status_code == 200 and r.json()["allocated"] > 0, r.text[:300])
+    r = api(c, ali, "GET", "/api/wallet")
+    check("موجودی پس از تسویه کاهش یافت", 0 <= r.json()["balance"] < 3_000_000)
+    # جریان درگاه: شارژ آنلاین → بازگشت از بانک → ثبت مستقیم نتیجه
+    r = api(c, ali, "POST", "/api/wallet/charge",
+            {"amount": 2_500_000, "wdate": "2026-11-16", "method": "gateway"})
+    gw = r.json()
+    check("آغاز شارژ از درگاه", gw["method"] == "gateway" and "gateway_url" in gw)
+    r = api(c, ali, "POST", "/api/wallet/gateway/verify", {"tx_id": gw["id"], "result": "ok", "ref": "TEST-REF-1"})
+    check("تأیید پرداخت درگاه با مرجع", r.status_code == 200 and r.json()["ok"] is True, r.text[:300])
+    r = api(c, ali, "GET", f"/api/wallet/tx/{gw['id']}")
+    check("جزئیات تراکنش درگاه", r.json()["gateway_ref"] == "TEST-REF-1")
+    r = api(c, ali, "POST", "/api/wallet/charge",
+            {"amount": 1_000_000, "wdate": "2026-11-16", "method": "gateway"})
+    gw2 = r.json()
+    r = api(c, ali, "POST", "/api/wallet/gateway/verify", {"tx_id": gw2["id"], "result": "cancel"})
+    check("انصراف از پرداخت → رد", r.status_code == 200 and r.json()["ok"] is False)
+
+    print("\n== ۱۵) بانک‌ها، پروژه‌ها، پروفایل‌ها و دریل‌داون ==")
+    r = api(c, fin, "GET", "/api/banks")
+    check("فهرست بانک‌ها", r.status_code == 200 and len(r.json()) >= 2 and r.json()[0]["tafsil_name"])
+    r = api(c, fin, "GET", "/api/banks/tafsils")
+    check("تفصیلی‌های بانک", r.status_code == 200 and len(r.json()) >= 2)
+    r = api(c, fin, "POST", "/api/banks", {"name": "بانک تست — جاری", "bank_name": "تست", "account_no": "123"})
+    check("افزودن بانک با تفصیلی خودکار", r.status_code == 200)
+    r = api(c, acc, "GET", "/api/projects")
+    check("پروژه‌های واقعی شرکت", r.status_code == 200 and any("درسیار۳۶۰" == p["name"] for p in r.json()))
+    r = api(c, fin, "GET", "/api/profiles")
+    check("پروفایل اشخاص", r.status_code == 200 and len(r.json()["members"]) >= 4 and len(r.json()["staff"]) >= 5)
+    check("تراز نهایی در پروفایل", "net_balance" in r.json()["members"][0]["totals"])
+    r = api(c, fin, "GET", "/api/members/1/timeline")
+    check("تایم‌لاین عضو", r.status_code == 200 and len(r.json()) > 3)
+    r = api(c, ceo, "GET", "/api/reports/expense-drill?level=1")
+    d1 = r.json()
+    check("دریل‌داون سطح دسته", r.status_code == 200 and len(d1["rows"]) > 3 and d1["total"] > 0)
+    cat = d1["rows"][0]["key"]
+    r = api(c, ceo, "GET", f"/api/reports/expense-drill?level=2&cat={cat}")
+    check("دریل‌داون سطح پروژه", r.status_code == 200 and len(r.json()["rows"]) >= 1)
+    r = api(c, ceo, "GET", f"/api/reports/expense-drill?level=1&month=1405-02")
+    check("دریل‌داون با فیلتر ماه", r.status_code == 200 and r.json()["total"] > 0)
+    r = api(c, ali, "GET", "/api/reports/expense-drill", expect=403)
+    check("عضو به دریل‌داون دسترسی ندارد", r.status_code == 403)
+    # داشبورد کامل — کلیدهای جدید
+    r = api(c, ceo, "GET", "/api/dashboard")
+    d = r.json()
+    check("داشبورد کلید services", "services" in d and "pending_amount" in d["services"])
+    check("داشبورد کلید fundings", isinstance(d.get("fundings"), list) and len(d["fundings"]) >= 1)
+    check("سود دوره در داشبورد", "profit" in d["pnl_year"])
+    # برندینگ عمومی
+    r = c.get(BASE + "/api/settings/public")
+    check("برندینگ عمومی صفحه ورود", r.status_code == 200 and "شرکت مه‌آی" in r.json()["company_name"])
+    # پروفایل شرکت در تنظیمات
+    r = api(c, fin, "PATCH", "/api/settings", {"company_reg_no": "REG-999", "company_activity": "تست پروفایل"})
+    check("ذخیره فیلدهای پروفایل شرکت", r.status_code == 200)
+    r = api(c, fin, "GET", "/api/settings")
+    check("خواندن پروفایل شرکت", r.json()["company_reg_no"] == "REG-999" and "company_logo" in r.json())
+    r = api(c, fin, "PATCH", "/api/settings", {"company_logo": "data:image/png;base64," + "A" * 500_000}, expect=400)
+    check("سقف حجم آرم", r.status_code == 400)
 
 print("\n" + "=" * 60)
 print(f"نتیجه: {len(PASS)} موفق / {len(FAIL)} ناموفق")

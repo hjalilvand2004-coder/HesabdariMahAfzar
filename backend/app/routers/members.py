@@ -131,3 +131,85 @@ def delete_share(mid: int, sid: int, user: dict = Depends(require("admin", "fina
     log(db, user, "delete", "share", sid, {"member_id": mid})
     db.commit()
     return {"ok": True}
+
+
+@router.get("/{mid}/timeline")
+def member_timeline(mid: int, user: dict = Depends(require()), db: Session = Depends(get_db)):
+    """تایم‌لاین رویدادهای مالی یک عضو — برای پروفایل شخص"""
+    if user["role"] == "member" and user["member_id"] != mid:
+        raise HTTPException(403, "دسترسی مجاز نیست")
+    return _timeline(db, mid)
+
+
+def _timeline(db: Session, mid: int) -> list[dict]:
+    from ..services.financing import commitment_paid_actual
+    out: list[dict] = []
+    for p in db.execute(select(models.Payment).where(
+            models.Payment.member_id == mid)).scalars():
+        out.append({
+            "date": p.pay_date, "ts": p.created_at.isoformat() if p.created_at else "",
+            "kind": "payment",
+            "title": f"پرداخت {p.no}" + (f" — پیگیری {p.tracking_no}" if p.tracking_no else ""),
+            "amount": p.amount, "status": p.status,
+        })
+    for c in db.execute(select(models.OffsetCredit).where(
+            models.OffsetCredit.member_id == mid)).scalars():
+        e = db.get(models.Expense, c.expense_id) if c.expense_id else None
+        out.append({
+            "date": (e.exp_date if e else (c.created_at.date().isoformat() if c.created_at else "")),
+            "ts": c.created_at.isoformat() if c.created_at else "", "kind": "credit",
+            "title": (f"اعتبار بابت پرداخت هزینه {e.no} از حساب شخصی" if e else (c.note or "اعتبار تهاتر")),
+            "amount": c.amount, "status": "approved",
+        })
+    for s in db.execute(select(models.Service).where(
+            models.Service.member_id == mid)).scalars():
+        out.append({
+            "date": s.comp_date or s.sdate, "ts": s.created_at.isoformat() if s.created_at else "",
+            "kind": "service", "title": f"خدمات {s.no} — {s.title}",
+            "amount": s.amount, "status": s.status,
+        })
+    comms = db.execute(
+        select(models.Commitment).join(models.FundingRequest,
+            models.Commitment.funding_id == models.FundingRequest.id).where(
+            models.Commitment.member_id == mid,
+            models.FundingRequest.status == "approved")).scalars().all()
+    for c in comms:
+        f = c.funding
+        paid = commitment_paid_actual(db, c)
+        out.append({
+            "date": (f.approved_at.date().isoformat() if f.approved_at else (f.base_date or "")),
+            "ts": (f.approved_at.isoformat() if f.approved_at else (f.created_at.isoformat() if f.created_at else "")),
+            "kind": "commitment",
+            "title": f"تعهد مصوبه {f.no} — {f.title} (سهم {(c.share_bp / 100):g}٪)".replace("٪", "٪"),
+            "amount": c.amount,
+            "status": "paid" if paid >= c.amount else ("partial" if paid > 0 else "unpaid"),
+        })
+    allocs = db.execute(select(models.Allocation).join(models.Commitment,
+        models.Allocation.commitment_id == models.Commitment.id).where(
+        models.Commitment.member_id == mid)).scalars().all()
+    for a in allocs:
+        c = db.get(models.Commitment, a.commitment_id)
+        f = db.get(models.FundingRequest, c.funding_id) if c else None
+        src = None
+        if a.payment_id:
+            src = db.get(models.Payment, a.payment_id)
+        elif a.credit_id:
+            src = db.get(models.OffsetCredit, a.credit_id)
+        out.append({
+            "date": ((src.pay_date if hasattr(src, "pay_date") else "") if src else
+                     (src.created_at.date().isoformat() if src and src.created_at else "")),
+            "ts": a.created_at.isoformat() if a.created_at else "", "kind": "allocate",
+            "title": f"تهاتر {a.amount:,} ریال با تعهد مصوبه {f.no if f else ''}",
+            "amount": a.amount, "status": "approved",
+        })
+    for w in db.execute(select(models.WalletTx).where(
+            models.WalletTx.member_id == mid)).scalars():
+        label = {"charge": f"کیف پول {w.no} — شارژ" + (" از درگاه بانک ملی" if w.method == "gateway" else ""),
+                 "settle": f"کیف پول {w.no} — تسویه تعهدات",
+                 "spend": f"کیف پول {w.no} — برداشت"}.get(w.type, f"کیف پول {w.no}")
+        out.append({
+            "date": w.wdate, "ts": w.created_at.isoformat() if w.created_at else "",
+            "kind": "wallet", "title": label, "amount": w.amount, "status": w.status,
+        })
+    out.sort(key=lambda x: ((x.get("date") or ""), (x.get("ts") or "")), reverse=True)
+    return out[:120]

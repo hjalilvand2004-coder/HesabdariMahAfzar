@@ -190,11 +190,38 @@ def member_statement(db: Session, member_id: int) -> dict:
         models.OffsetCredit.member_id == member_id).order_by(models.OffsetCredit.id)).scalars().all()
     credit_rows = []
     for cr in credits:
-        exp = db.get(models.Expense, cr.expense_id)
+        exp = db.get(models.Expense, cr.expense_id) if cr.expense_id else None
+        svc = None
+        if not exp and (cr.note or "").startswith("جبران خدمات"):
+            svc_no = (cr.note or "").split(" ")[2] if len((cr.note or "").split(" ")) > 2 else ""
+            svc = db.execute(select(models.Service).where(
+                models.Service.no == svc_no)).scalar_one_or_none()
         credit_rows.append({
             "id": cr.id, "amount": cr.amount, "remaining": cr.remaining,
             "expense_no": exp.no if exp else "", "expense_title": exp.title if exp else "",
-            "date": (exp.exp_date if exp else ""), "note": cr.note,
+            "date": (exp.exp_date if exp else (svc.comp_date if svc else
+                    (cr.created_at.date().isoformat() if cr.created_at else ""))), "note": cr.note,
+        })
+    # خدمات عضو — ثبت، گردش تأیید و جبران
+    service_rows = []
+    for s in db.execute(select(models.Service).where(
+            models.Service.member_id == member_id).order_by(models.Service.id.desc())).scalars():
+        service_rows.append({
+            "id": s.id, "no": s.no, "sdate": s.sdate, "stype": s.stype, "title": s.title,
+            "qty": s.qty, "unit": s.unit, "unit_price": s.unit_price, "amount": s.amount,
+            "calc_note": s.calc_note, "status": s.status,
+            "comp_method": s.comp_method, "comp_date": s.comp_date, "comp_note": s.comp_note,
+        })
+    # تراکنش‌های کیف پول عضو
+    wallet_rows = []
+    for w in db.execute(select(models.WalletTx).where(
+            models.WalletTx.member_id == member_id).order_by(models.WalletTx.id.desc())).scalars():
+        wallet_rows.append({
+            "id": w.id, "member_id": w.member_id, "no": w.no, "wdate": w.wdate,
+            "type": w.type, "amount": w.amount, "method": w.method, "gateway": w.gateway,
+            "gateway_ref": w.gateway_ref, "tracking_no": w.tracking_no,
+            "status": w.status, "note": w.note, "commitment_id": w.commitment_id,
+            "bank_id": w.bank_id,
         })
     # مانده دفتری هر نوع حساب این عضو (تفصیلی عضو)
     taf = db.execute(select(models.Tafsil).where(
@@ -220,6 +247,16 @@ def member_statement(db: Session, member_id: int) -> dict:
     total_alloc = sum(a.amount for a in db.execute(
         select(models.Allocation).join(models.Commitment, models.Allocation.commitment_id == models.Commitment.id)
         .where(models.Commitment.member_id == member_id)).scalars())
+    services_cash = sum(s["amount"] for s in service_rows
+                        if s["status"] == "compensated" and s["comp_method"] == "cash")
+    services_credit = sum(s["amount"] for s in service_rows
+                          if s["status"] == "compensated" and s["comp_method"] == "credit")
+    services_pending = sum(s["amount"] for s in service_rows
+                           if s["status"] in ("draft", "pending", "approved"))
+    # موجودی کیف پول = شارژهای تأییدشده − تسویه/برداشت
+    wallet_balance = (sum(w["amount"] for w in wallet_rows
+                          if w["type"] == "charge" and w["status"] == "approved")
+                      - sum(w["amount"] for w in wallet_rows if w["type"] in ("settle", "spend")))
     return {
         "member": {"id": member.id, "code": member.code, "full_name": member.full_name,
                    "kind": member.kind, "phone": member.phone},
@@ -227,6 +264,8 @@ def member_statement(db: Session, member_id: int) -> dict:
         "commitments": comm_rows,
         "payments": pay_rows,
         "credits": credit_rows,
+        "services": service_rows,
+        "wallet": wallet_rows,
         "balances": balances,
         "totals": {
             "commitments": total_commit,
@@ -236,5 +275,11 @@ def member_statement(db: Session, member_id: int) -> dict:
             "expense_credits": total_credit,
             "total_settled": total_alloc,
             "unallocated_credit": total_paid_cash + total_credit - total_alloc,
+            "services_cash": services_cash,
+            "services_credit": services_credit,
+            "services_pending": services_pending,
+            "services_total": services_cash + services_credit + services_pending,
+            "wallet_balance": wallet_balance,
+            "net_balance": (total_paid_cash + total_credit) - total_commit,
         },
     }

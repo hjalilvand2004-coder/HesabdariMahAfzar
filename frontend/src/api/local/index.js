@@ -254,6 +254,11 @@ route('DELETE', /^\/api\/users\/(\d+)$/, ({ match }) => {
 })
 
 // settings
+route('GET', '/api/settings/public', () => {
+  // برندینگ عمومی برای صفحه ورود — بدون احراز هویت
+  const s = db().settings
+  return { company_name: s.company_name, company_name_en: s.company_name_en || '', company_logo: s.company_logo || '' }
+})
 route('GET', '/api/settings', () => {
   require()
   const s = db().settings

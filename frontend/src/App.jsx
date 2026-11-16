@@ -91,6 +91,9 @@ export default function App () {
           const me = await call('GET', '/api/auth/me')
           setUser(me)
           setSettings(await call('GET', '/api/settings'))
+        } else {
+          // برندینگ عمومی برای صفحه ورود — آرم و نام شرکت بدون احراز هویت
+          setSettings(await call('GET', '/api/settings/public').catch(() => null))
         }
       } catch { clearToken() }
       setBooting(false)

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useToast } from '../ui/Toast.jsx'
+import { useApp } from '../App.jsx'
 import { Icon } from '../ui/components.jsx'
 import { GuideButton } from '../ui/Guide.jsx'
 
@@ -18,6 +19,7 @@ const FEATURES = [
 
 export default function Login ({ onLogin }) {
   const toast = useToast()
+  const { settings } = useApp()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [pin, setPin] = useState('')
@@ -55,10 +57,14 @@ export default function Login ({ onLogin }) {
       {/* پنل معرفی سامانه */}
       <aside className="login-showcase">
         <div className="showcase-brand">
-          <div className="showcase-logo">◈</div>
+          <div className="showcase-logo">
+            {settings?.company_logo
+              ? <img src={settings.company_logo} alt="آرم شرکت" />
+              : '◈'}
+          </div>
           <div>
             <h1>سامانه مالیار</h1>
-            <p>حسابداری جامع شرکت، به زبان آدمیزاد</p>
+            <p>{settings?.company_name ? `حسابداری جامع ${settings.company_name}` : 'حسابداری جامع شرکت، به زبان آدمیزاد'}</p>
           </div>
         </div>
         <div className="showcase-title">
@@ -80,7 +86,7 @@ export default function Login ({ onLogin }) {
           ))}
         </div>
         <div className="showcase-foot">
-          <span className="v-chip">نسخه ۱.۳ — رابط کاربری بازطراحی‌شده</span>
+          <span className="v-chip">نسخه ۱.۴ — پروفایل شرکت، خدمات و کیف پول کامل</span>
           <span>حالت شب و روشن · ریسپانسیو · راست‌چین کامل</span>
         </div>
       </aside>
@@ -89,7 +95,11 @@ export default function Login ({ onLogin }) {
       <div className="login-form-side">
         <form className="login-card" onSubmit={submit} key={shake}>
           <div className="login-brand">
-            <div className="login-logo">◈</div>
+            <div className="login-logo">
+              {settings?.company_logo
+                ? <img src={settings.company_logo} alt="آرم شرکت" />
+                : '◈'}
+            </div>
             <div>
               <div className="login-title">ورود به سامانه</div>
               <div className="login-sub">حساب خود را وارد کنید تا کار را شروع کنیم</div>

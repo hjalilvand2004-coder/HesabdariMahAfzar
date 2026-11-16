@@ -2,9 +2,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-const FRONT = '/home/z/my-project/download/samane-maliyar/frontend'
+const FRONT = new URL('../frontend', import.meta.url).pathname
 const DIST = path.join(FRONT, 'dist')
-const OUT = '/home/z/my-project/download/Maliyar-Portable.html'
+const OUT = new URL('../Maliyar-Portable.html', import.meta.url).pathname
 
 const html = fs.readFileSync(path.join(DIST, 'index.html'), 'utf-8')
 

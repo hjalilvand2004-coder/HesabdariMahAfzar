@@ -11,7 +11,8 @@ from fastapi.staticfiles import StaticFiles
 
 from .database import Base, engine, SessionLocal
 from .seed import ensure_seed
-from .routers import auth, users, settings, members, accounts, expenses, funding, payments, vouchers, reports, dashboard
+from .routers import (auth, users, settings, members, accounts, expenses, funding,
+                      payments, vouchers, reports, dashboard, services, wallet, meta)
 
 app = FastAPI(
     title="سامانه مالیار — مدیریت هزینه، تأمین مالی اعضا و حسابداری",
@@ -31,7 +32,7 @@ async def value_error_handler(request, exc: ValueError):
     return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 for r in (auth, users, settings, members, accounts, expenses, funding,
-          payments, vouchers, reports, dashboard):
+          payments, vouchers, reports, dashboard, services, wallet, meta):
     app.include_router(r.router)
 
 

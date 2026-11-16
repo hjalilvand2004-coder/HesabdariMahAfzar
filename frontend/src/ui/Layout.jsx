@@ -60,10 +60,14 @@ export default function Layout ({ route, title, children }) {
     <div className="shell">
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="sidebar-brand">
-          <div className="sidebar-logo">◈</div>
+          <div className="sidebar-logo">
+            {settings?.company_logo
+              ? <img src={settings.company_logo} alt="آرم شرکت" />
+              : '◈'}
+          </div>
           <div>
-            <b>مالیار</b>
-            <span>مدیریت مالی و حسابداری</span>
+            <b>{settings?.company_name_en || 'مالیار'}</b>
+            <span>{settings?.company_name || 'مدیریت مالی و حسابداری'}</span>
           </div>
         </div>
         {NAV.map(g => {
@@ -83,7 +87,7 @@ export default function Layout ({ route, title, children }) {
           )
         })}
         <div className="sidebar-foot">
-          {settings?.company_name || ''} — نسخه ۱.۳<br />
+          {settings?.company_name || ''} — نسخه ۱.۴<br />
           واحد نمایش: {unitLabel}
         </div>
       </aside>
