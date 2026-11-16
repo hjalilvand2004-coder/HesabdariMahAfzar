@@ -1,5 +1,7 @@
 // قالب‌بندی مبالغ و اعداد فارسی — مبالغ پایه همیشه ریال است
 export const faNum = (n) => (n === 0 || n ? Number(n).toLocaleString('fa-IR', { maximumFractionDigits: 0 }) : '۰')
+// رقم فارسی بدون جداکننده (برای سال شمسی و کدها)
+export const faDigit = (n) => String(n ?? '').replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[Number(d)])
 
 // تبدیل نمایشی ریال به واحد نمایش (تومان = ÷۱۰)
 export function fmtMoney (rial, unit = 'toman') {
@@ -59,6 +61,56 @@ export const actionLabels = {
   settle: 'تسویه فروشنده', login: 'ورود به سامانه', upload: 'بارگذاری پیوست',
   close_period: 'بستن دوره', open_period: 'بازگشایی دوره', deactivate: 'غیرفعال‌سازی',
   seed: 'ایجاد داده اولیه',
+}
+
+// ---------- خدمات اعضا ----------
+export const stypeLabels = {
+  legal: 'حقوقی و قراردادها', accounting: 'حسابداری و مالی', tech: 'فنی و نرم‌افزاری',
+  management: 'مدیریت و مشاوره', marketing: 'بازاریابی و فروش', other: 'سایر خدمات',
+}
+export const serviceStatusLabels = {
+  draft: 'پیش‌نویس', pending: 'در انتظار تأیید و جبران', approved: 'تأییدشده',
+  compensated: 'جبران‌شده', rejected: 'ردشده',
+}
+export const compMethodLabels = { credit: 'از محل اعتبار حساب (تهاتر)', cash: 'پرداخت نقدی' }
+
+// ---------- مدیریت کاربران و سطح دسترسی ----------
+export const MODULES = [
+  { key: 'dashboard', label: 'داشبورد مدیریتی', group: 'میزکار' },
+  { key: 'analytics', label: 'تحلیل‌های هوشمند', group: 'میزکار' },
+  { key: 'expenses', label: 'هزینه‌ها و خریدها', group: 'عملیات مالی' },
+  { key: 'funding', label: 'تأمین مالی اعضا', group: 'عملیات مالی' },
+  { key: 'payments', label: 'پرداخت‌ها و وصول', group: 'عملیات مالی' },
+  { key: 'services', label: 'خدمات اعضا و جبران خدمات', group: 'عملیات مالی' },
+  { key: 'members', label: 'اعضا و سهامداران', group: 'عملیات مالی' },
+  { key: 'profiles', label: 'پروفایل اشخاص', group: 'عملیات مالی' },
+  { key: 'accounts', label: 'کدینگ حساب‌ها', group: 'حسابداری' },
+  { key: 'vouchers', label: 'اسناد حسابداری', group: 'حسابداری' },
+  { key: 'reports', label: 'دفاتر و گزارش‌ها', group: 'حسابداری' },
+  { key: 'statements', label: 'صورت‌های مالی', group: 'حسابداری' },
+  { key: 'audit', label: 'ردپای حسابرسی', group: 'نظارت و پیکربندی' },
+  { key: 'users', label: 'مدیریت کاربران و سطح دسترسی', group: 'نظارت و پیکربندی' },
+  { key: 'settings', label: 'تنظیمات', group: 'نظارت و پیکربندی' },
+  { key: 'my-account', label: 'پرتال عضو (وضعیت حساب من)', group: 'میزکار' },
+]
+
+const ALL = MODULES.map(m => m.key)
+const STAFF_MODULES = ALL.filter(k => k !== 'users' && k !== 'my-account')
+
+export const DEFAULT_ROLE_PERMS = {
+  admin: [...ALL],
+  finance: [...STAFF_MODULES, 'audit'].filter(k => k !== 'users'),
+  accountant: [...STAFF_MODULES],
+  ceo: [...STAFF_MODULES],
+  auditor: ['dashboard', 'analytics', 'members', 'profiles', 'accounts', 'vouchers', 'reports', 'statements', 'audit'],
+  member: ['my-account'],
+}
+
+// دسترسی مؤثر: ماتریس ذخیره‌شده در تنظیمات، وگرنه پیش‌فرض
+export function permOf (settings, role, moduleKey) {
+  const matrix = settings?.role_perms
+  if (matrix && Array.isArray(matrix[role])) return matrix[role].includes(moduleKey)
+  return (DEFAULT_ROLE_PERMS[role] || []).includes(moduleKey)
 }
 
 export function csvDownload (filename, rows, headers) {

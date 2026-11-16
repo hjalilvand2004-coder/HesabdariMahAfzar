@@ -2,6 +2,7 @@
 import { hashPassword } from '../../lib/sha256.js'
 import { jalaliToIso, fiscalYearRange } from '../../lib/jalali.js'
 import { nextId, log } from './store.js'
+import { DEFAULT_ROLE_PERMS } from '../../lib/format.js'
 import * as E from './engine.js'
 
 const T = 10 // نوشتن به تومان × ۱۰ = ریال
@@ -36,6 +37,7 @@ const ACCOUNTS = [
   ['51032', 'ملزومات مصرفی', 'moin', '5103', 'expense', 'debit'],
   ['5104', 'خدمات و مشاوره', 'col', '5', 'expense', 'debit'],
   ['51041', 'خدمات فنی و نرم‌افزاری', 'moin', '5104', 'expense', 'debit'],
+  ['51042', 'خدمات اعضا و جبران خدمات', 'moin', '5104', 'expense', 'debit'],
   ['5105', 'هزینه حمل‌ونقل', 'col', '5', 'expense', 'debit'],
   ['5106', 'تبلیغات و بازاریابی', 'col', '5', 'expense', 'debit'],
   ['5107', 'ارتباطات و انرژی', 'col', '5', 'expense', 'debit'],
@@ -55,6 +57,7 @@ export function seedDemo (db) {
     fiscal_label: '1405', fiscal_start: fs, fiscal_end: fe,
     period_closed: false, secret: 'portable-' + Math.random().toString(36).slice(2),
     base_share_date: '2025-03-21',
+    role_perms: JSON.parse(JSON.stringify(DEFAULT_ROLE_PERMS)),
   }
   db.counters = {}
   let uid = 1
@@ -246,10 +249,71 @@ export function seedDemo (db) {
     E.autoAllocate(db, { memberId: p.member_id, amount: p.amount, paymentId: p.id, fundingId: f.id, user: sys })
   }
 
+  // خدمات اعضا و جبران خدمات — داده نمونه
+  const addService = (no, code, kw) => {
+    const s = {
+      id: nextId(db, 'services'), no,
+      member_id: memberIds[code], sdate: kw.sdate,
+      stype: kw.stype || 'other', title: kw.title, description: kw.description || '',
+      qty: kw.qty, unit: kw.unit || 'ساعت', unit_price: kw.unit_price,
+      amount: kw.qty * kw.unit_price, calc_note: kw.calc_note || '',
+      status: kw.status || 'draft', comp_method: kw.comp_method || null,
+      comp_date: kw.comp_date || '', comp_note: kw.comp_note || '',
+      voucher_id: null, credit_id: null,
+      created_by: kw.created_by || 'finance', approved_by: kw.approved_by || '',
+      approved_at: kw.approved_at || null, created_at: new Date().toISOString(),
+    }
+    db.services.push(s)
+    return s
+  }
+  const sv1 = addService('SV-1405-0001', 'M-1003', {
+    sdate: jalaliToIso(1405, 6, 12), stype: 'legal', title: 'تنظیم و بازبینی قراردادهای فروشندگان پلتفرم',
+    description: 'بررسی حقوقی ۴ قرارداد تأمین‌کننده و پیوست‌های آن',
+    qty: 12, unit: 'ساعت', unit_price: 20_000_000, calc_note: '۱۲ ساعت × نرخ توافقی ۲ میلیون تومان بر ساعت (صورتجلسه هیئت‌مدیره ۱۴۰۵/۰۴)',
+    status: 'approved', comp_method: 'credit', comp_date: jalaliToIso(1405, 6, 20),
+    comp_note: 'جبران از محل اعتبار حساب عضو — تهاتر با تعهد تأمین مالی', approved_by: 'ceo',
+    approved_at: new Date().toISOString(),
+  })
+  addService('SV-1405-0002', 'M-1002', {
+    sdate: jalaliToIso(1405, 7, 28), stype: 'accounting', title: 'بستن حساب‌ها و تنظیم گزارش مالی فصل تابستان',
+    description: 'طبقه‌بندی اسناد، مغایرت‌گیری بانکی و پیش‌نویس گزارش فصلی',
+    qty: 8, unit: 'ساعت', unit_price: 15_000_000, calc_note: '۸ ساعت × نرخ مصوب ۱.۵ میلیون تومان بر ساعت',
+    status: 'pending', created_by: 'finance',
+  })
+  addService('SV-1405-0003', 'M-1001', {
+    sdate: jalaliToIso(1405, 8, 10), stype: 'tech', title: 'مشاوره فنی زیرساخت و معماری امنیتی سرورها',
+    description: 'طراحی توپولوژی شبکه، سیاست دسترسی و پشتیبان‌گیری',
+    qty: 6, unit: 'ساعت', unit_price: 18_000_000, calc_note: '۶ ساعت × نرخ پیشنهادی ۱.۸ میلیون تومان بر ساعت',
+    status: 'draft', created_by: 'finance',
+  })
+  // سند و اعتبار خدمات تأییدشده با موتور واقعی
+  {
+    const m = db.members.find(m => m.id === sv1.member_id)
+    const taf = E.tafsilForMember(db, sv1.member_id)
+    const v = E.postVoucher(db, {
+      vdate: sv1.comp_date, description: `جبران خدمات ${sv1.no} — ${m?.full_name || ''} (${sv1.title})`,
+      lines: [
+        { account_code: '51042', debit: sv1.amount, description: `هزینه جبران خدمات عضو — ${sv1.title}`, project_id: 3 },
+        { account_code: '2102', tafsil_id: taf?.id ?? null, tafsil_name: m?.full_name || '', credit: sv1.amount, description: 'اعتبار جبران خدمات به جاری عضو منظور شد' },
+      ],
+      sourceType: 'service', sourceId: sv1.id, idemKey: `service:${sv1.id}`, user: sys,
+    })
+    sv1.voucher_id = v.id
+    const cr = {
+      id: nextId(db, 'credits'), member_id: sv1.member_id, expense_id: null,
+      amount: sv1.amount, remaining: sv1.amount,
+      note: `جبران خدمات ${sv1.no} — ${sv1.title}`, created_at: new Date().toISOString(),
+    }
+    db.credits.push(cr)
+    sv1.credit_id = cr.id
+    cr.remaining = E.autoAllocate(db, { memberId: sv1.member_id, amount: sv1.amount, creditId: cr.id, user: sys })
+  }
+
   // همگام‌سازی شمارنده‌ها
   db.counters['expense:1405'] = idx
   db.counters['funding:1405'] = 2
   db.counters['payment:1405'] = 4
+  db.counters['service:1405'] = 3
   db.counters['voucher:1405'] = db.vouchers.length
   log(db, sys, 'seed', 'system', null, { message: 'داده نمونه اولیه ایجاد شد' })
 }

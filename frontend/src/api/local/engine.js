@@ -418,9 +418,15 @@ export function memberStatement (db, memberId) {
     }
   })
   const creditRows = db.credits.filter(c => c.member_id === memberId).map(cr => {
-    const e = db.expenses.find(x => x.id === cr.expense_id)
-    return { id: cr.id, amount: cr.amount, remaining: cr.remaining, expense_no: e?.no || '', expense_title: e?.title || '', date: e?.exp_date || '', note: cr.note }
+    const e = cr.expense_id ? db.expenses.find(x => x.id === cr.expense_id) : null
+    const sv = cr.note?.startsWith('جبران خدمات') ? db.services.find(s => s.no === (cr.note || '').split(' ')[2]) : null
+    return { id: cr.id, amount: cr.amount, remaining: cr.remaining, expense_no: e?.no || '', expense_title: e?.title || '', date: e?.exp_date || (sv?.comp_date || cr.created_at?.slice(0, 10) || ''), note: cr.note }
   })
+  const serviceRows = db.services.filter(s => s.member_id === memberId).sort((a, b) => a.id - b.id).map(s => ({
+    id: s.id, no: s.no, sdate: s.sdate, stype: s.stype, title: s.title, qty: s.qty, unit: s.unit,
+    unit_price: s.unit_price, amount: s.amount, calc_note: s.calc_note, status: s.status,
+    comp_method: s.comp_method, comp_date: s.comp_date, comp_note: s.comp_note,
+  }))
   const balances = { current: 0, loan: 0, capital: 0, debit_total: 0, credit_total: 0 }
   const taf = tafsilForMember(db, memberId)
   if (taf) {
@@ -440,10 +446,13 @@ export function memberStatement (db, memberId) {
   const totalAlloc = db.allocations
     .filter(a => comms.some(c => c.id === a.commitment_id))
     .reduce((s, a) => s + a.amount, 0)
+  const servicesApproved = serviceRows.filter(s => s.status === 'compensated' && s.comp_method === 'cash').reduce((s, x) => s + x.amount, 0)
+  const servicesCredit = serviceRows.filter(s => s.status === 'compensated' && s.comp_method === 'credit').reduce((s, x) => s + x.amount, 0)
+  const servicesPending = serviceRows.filter(s => ['draft', 'pending', 'approved'].includes(s.status)).reduce((s, x) => s + x.amount, 0)
   return {
     member: { id: m.id, code: m.code, full_name: m.full_name, kind: m.kind, phone: m.phone },
     share_now: memberShareBpAt(db, memberId, null),
-    commitments: commRows, payments: payRows, credits: creditRows,
+    commitments: commRows, payments: payRows, credits: creditRows, services: serviceRows,
     balances,
     totals: {
       commitments: totalCommit, commitments_paid: totalPaidCommit,
@@ -451,8 +460,62 @@ export function memberStatement (db, memberId) {
       payments_cash: totalPaidCash, expense_credits: totalCredit,
       total_settled: totalAlloc,
       unallocated_credit: totalPaidCash + totalCredit - totalAlloc,
+      services_cash: servicesApproved, services_credit: servicesCredit, services_pending: servicesPending,
+      services_total: servicesApproved + servicesCredit + servicesPending,
+      net_balance: (totalPaidCash + totalCredit) - totalCommit,
     },
   }
+}
+
+// تایم‌لاین رویدادهای مالی یک عضو — برای پروفایل شخص
+export function memberTimeline (db, memberId) {
+  const out = []
+  for (const p of db.payments.filter(x => x.member_id === memberId)) {
+    out.push({
+      date: p.pay_date, ts: p.created_at, kind: 'payment',
+      title: `پرداخت ${p.no}${p.tracking_no ? ` — پیگیری ${p.tracking_no}` : ''}`,
+      amount: p.amount, status: p.status,
+    })
+  }
+  for (const c of db.credits.filter(x => x.member_id === memberId)) {
+    const e = c.expense_id ? db.expenses.find(x => x.id === c.expense_id) : null
+    out.push({
+      date: e?.exp_date || c.created_at?.slice(0, 10) || '', ts: c.created_at, kind: 'credit',
+      title: c.expense_id ? `اعتبار بابت پرداخت هزینه ${e?.no || ''} از حساب شخصی` : (c.note || 'اعتبار تهاتر'),
+      amount: c.amount, status: 'approved',
+    })
+  }
+  for (const s of db.services.filter(x => x.member_id === memberId)) {
+    out.push({
+      date: s.comp_date || s.sdate, ts: s.created_at, kind: 'service',
+      title: `خدمات ${s.no} — ${s.title}`,
+      amount: s.amount, status: s.status,
+    })
+  }
+  for (const c of db.commitments.filter(x => x.member_id === memberId)) {
+    const f = db.funding.find(x => x.id === c.funding_id)
+    if (!f || f.status !== 'approved') continue
+    out.push({
+      date: f.approved_at?.slice(0, 10) || f.base_date || '', ts: f.approved_at || f.created_at, kind: 'commitment',
+      title: `تعهد مصوبه ${f.no} — ${f.title} (سهم ${(c.share_bp / 100).toLocaleString('fa-IR')}٪)`,
+      amount: c.amount, status: commitmentPaid(db, c) >= c.amount ? 'paid' : (commitmentPaid(db, c) > 0 ? 'partial' : 'unpaid'),
+    })
+  }
+  for (const a of db.allocations.filter(x => {
+    const c = db.commitments.find(c => c.id === x.commitment_id)
+    return c && c.member_id === memberId
+  })) {
+    const c = db.commitments.find(c => c.id === a.commitment_id)
+    const f = db.funding.find(x => x.id === c.funding_id)
+    const src = a.payment_id ? db.payments.find(p => p.id === a.payment_id) : db.credits.find(cr => cr.id === a.credit_id)
+    out.push({
+      date: src?.pay_date || src?.created_at?.slice(0, 10) || '', ts: a.created_at, kind: 'allocate',
+      title: `تهاتر ${a.amount.toLocaleString('fa-IR')} ریال با تعهد مصوبه ${f?.no || ''}`,
+      amount: a.amount, status: 'approved',
+    })
+  }
+  out.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.ts || '').localeCompare(a.ts || ''))
+  return out.slice(0, 120)
 }
 
 // ---------- تحلیل قاعده‌محور ----------

@@ -317,6 +317,38 @@ route('GET', /^\/api\/members\/(\d+)\/statement$/, ({ match }) => {
   if (u.role === 'member' && u.member_id !== mid) throw new HttpError(403, 'فقط وضعیت حساب خودتان قابل مشاهده است')
   return E.memberStatement(db(), mid)
 })
+route('GET', /^\/api\/members\/(\d+)\/timeline$/, ({ match }) => {
+  const u = require()
+  const mid = Number(match[1])
+  if (u.role === 'member' && u.member_id !== mid) throw new HttpError(403, 'دسترسی مجاز نیست')
+  return E.memberTimeline(db(), mid)
+})
+
+// پروفایل اشخاص شرکت — اعضا (وضعیت مالی کامل) و کارکنان (فعالیت)
+route('GET', '/api/profiles', () => {
+  const u = require()
+  const d = db()
+  const members = d.members.map(m => {
+    const st = E.memberStatement(d, m.id)
+    return {
+      id: m.id, code: m.code, full_name: m.full_name, kind: m.kind, phone: m.phone, email: m.email,
+      share_now: st.share_now, totals: st.totals,
+    }
+  })
+  const staff = d.users.filter(x => x.is_active).map(x => {
+    const acts = d.audit.filter(a => a.username === x.username)
+    const lastLogin = acts.find(a => a.action === 'login')
+    return {
+      id: x.id, username: x.username, full_name: x.full_name, role: x.role,
+      member_id: x.member_id, last_login: lastLogin?.ts?.slice(0, 10) || '',
+      action_count: acts.length,
+    }
+  })
+  if (u.role === 'member') {
+    return { members: members.filter(m => m.id === u.member_id), staff: [] }
+  }
+  return { members, staff }
+})
 route('GET', /^\/api\/members\/(\d+)\/shares$/, ({ match }) => {
   const u = require()
   const mid = Number(match[1])
@@ -816,6 +848,155 @@ route('POST', '/api/payments/auto-allocate', ({ body }) => {
   return { unallocated: left }
 })
 
+// ---------- خدمات اعضا و جبران خدمات ----------
+
+const servicePub = (d, s) => ({
+  ...s,
+  member_name: d.members.find(m => m.id === s.member_id)?.full_name || '',
+  member_code: d.members.find(m => m.id === s.member_id)?.code || '',
+})
+
+route('GET', '/api/services', ({ query }) => {
+  const u = require()
+  let rows = [...db().services].sort((a, b) => b.id - a.id)
+  if (u.role === 'member') rows = rows.filter(s => s.member_id === u.member_id)
+  if (query?.status) rows = rows.filter(s => s.status === query.status)
+  if (query?.member_id) rows = rows.filter(s => s.member_id === Number(query.member_id))
+  return rows.map(s => servicePub(db(), s))
+})
+
+route('POST', '/api/services', ({ body }) => {
+  guardPeriod()
+  const user = require(['admin', 'finance', 'accountant'])
+  const d = db()
+  const amount = Number(body.qty || 0) * Number(body.unit_price || 0)
+  if (!body.member_id) throw new HttpError(400, 'عضو ارائه‌دهنده خدمت باید مشخص شود')
+  if (!body.title?.trim()) throw new HttpError(400, 'عنوان خدمت الزامی است')
+  if (amount <= 0) throw new HttpError(400, 'مبلغ خدمت باید بزرگ‌تر از صفر باشد (تعداد × نرخ)')
+  if (!body.sdate) throw new HttpError(400, 'تاریخ ارائه خدمت الزامی است')
+  const s = {
+    id: nextId(d, 'services'),
+    no: E.nextNumberLocal(d, 'service', body.sdate, { service: 'SV' }),
+    member_id: Number(body.member_id), sdate: body.sdate,
+    stype: body.stype || 'other', title: body.title, description: body.description || '',
+    qty: Number(body.qty || 0), unit: body.unit || 'ساعت', unit_price: Number(body.unit_price || 0),
+    amount, calc_note: body.calc_note || '',
+    status: 'draft', comp_method: null, comp_date: '', comp_note: '',
+    voucher_id: null, credit_id: null,
+    created_by: user.username, approved_by: '', approved_at: null,
+    created_at: new Date().toISOString(),
+  }
+  d.services.push(s)
+  log(d, user, 'create', 'service', s.id, { no: s.no, amount })
+  commit()
+  return servicePub(d, s)
+})
+
+route('PATCH', /^\/api\/services\/(\d+)$/, ({ body, match }) => {
+  guardPeriod()
+  const user = require(['admin', 'finance', 'accountant'])
+  const d = db()
+  const s = d.services.find(x => x.id === Number(match[1]))
+  if (!s) throw new HttpError(404, 'خدمت یافت نشد')
+  if (s.status !== 'draft') throw new HttpError(400, 'فقط پیش‌نویس خدمت قابل ویرایش است')
+  Object.assign(s, {
+    member_id: Number(body.member_id), sdate: body.sdate, stype: body.stype || 'other',
+    title: body.title, description: body.description || '',
+    qty: Number(body.qty || 0), unit: body.unit || 'ساعت', unit_price: Number(body.unit_price || 0),
+    amount: Number(body.qty || 0) * Number(body.unit_price || 0), calc_note: body.calc_note || '',
+  })
+  log(d, user, 'update', 'service', s.id, { no: s.no, amount: s.amount })
+  commit()
+  return servicePub(d, s)
+})
+
+route('DELETE', /^\/api\/services\/(\d+)$/, ({ match }) => {
+  guardPeriod()
+  const user = require(['admin', 'finance', 'accountant'])
+  const d = db()
+  const s = d.services.find(x => x.id === Number(match[1]))
+  if (!s) throw new HttpError(404, 'خدمت یافت نشد')
+  if (s.status !== 'draft') throw new HttpError(400, 'فقط پیش‌نویس قابل حذف است')
+  d.services = d.services.filter(x => x.id !== s.id)
+  log(d, user, 'delete', 'service', s.id, { no: s.no })
+  commit()
+  return { ok: true }
+})
+
+route('POST', /^\/api\/services\/(\d+)\/submit$/, ({ match }) => {
+  const user = require(['admin', 'finance', 'accountant'])
+  const d = db()
+  const s = d.services.find(x => x.id === Number(match[1]))
+  if (!s) throw new HttpError(404, 'خدمت یافت نشد')
+  if (!['draft', 'rejected'].includes(s.status)) throw new HttpError(400, 'این خدمت در جریان بررسی است')
+  s.status = 'pending'
+  log(d, user, 'submit', 'service', s.id, { no: s.no })
+  commit()
+  return { ok: true, status: s.status }
+})
+
+route('POST', /^\/api\/services\/(\d+)\/approve$/, ({ body, match }) => {
+  guardPeriod()
+  const user = require(['ceo'])
+  const d = db()
+  const s = d.services.find(x => x.id === Number(match[1]))
+  if (!s) throw new HttpError(404, 'خدمت یافت نشد')
+  if (s.status !== 'pending') throw new HttpError(400, 'فقط خدمت «در انتظار تأیید» قابل تصمیم‌گیری است')
+  if (body.decision === 'reject') {
+    s.status = 'rejected'
+    s.comp_note = `رد توسط ${user.username}: ${body.note || ''}`
+    log(d, user, 'reject', 'service', s.id, { note: body.note })
+    commit()
+    return { ok: true, status: 'rejected' }
+  }
+  const method = body.comp_method || 'credit'
+  if (!['credit', 'cash'].includes(method)) throw new HttpError(400, 'روش جبران نامعتبر است')
+  const m = d.members.find(m => m.id === s.member_id)
+  const taf = E.tafsilForMember(d, s.member_id)
+  let lines
+  if (method === 'credit') {
+    if (!taf) throw new HttpError(400, 'تفصیلی عضو یافت نشد')
+    lines = [
+      { account_code: '51042', debit: s.amount, description: `هزینه جبران خدمات عضو — ${s.title}`, project_id: null },
+      { account_code: '2102', tafsil_id: taf.id, tafsil_name: m?.full_name || '', credit: s.amount, description: 'اعتبار جبران خدمات به جاری عضو منظور شد' },
+    ]
+  } else {
+    if (!body.bank_id) throw new HttpError(400, 'برای پرداخت نقدی، حساب بانکی/صندوق باید انتخاب شود')
+    const acc = E.bankCode(d, body.bank_id)
+    const bt = E.tafsilForBank(d, body.bank_id)
+    lines = [
+      { account_code: '51042', debit: s.amount, description: `هزینه جبران خدمات عضو — ${s.title}`, project_id: null },
+      { account_code: acc, tafsil_id: bt?.id ?? null, tafsil_name: bt?.name || (acc === '1101' ? 'صندوق' : ''), credit: s.amount, description: 'پرداخت نقدی جبران خدمات' },
+    ]
+  }
+  const v = E.postVoucher(d, {
+    vdate: body.comp_date || s.sdate, description: `جبران خدمات ${s.no} — ${m?.full_name || ''} (${s.title})`,
+    lines, sourceType: 'service', sourceId: s.id, idemKey: `service:${s.id}`, user,
+  })
+  s.voucher_id = v.id
+  s.status = 'compensated'
+  s.comp_method = method
+  s.comp_date = body.comp_date || s.sdate
+  s.comp_note = body.note || (method === 'credit' ? 'جبران از محل اعتبار حساب عضو' : 'پرداخت نقدی جبران خدمات')
+  s.approved_by = user.username
+  s.approved_at = new Date().toISOString()
+  if (method === 'credit') {
+    const cr = {
+      id: nextId(d, 'credits'), member_id: s.member_id, expense_id: null,
+      amount: s.amount, remaining: s.amount,
+      note: `جبران خدمات ${s.no} — ${s.title}`, created_at: new Date().toISOString(),
+    }
+    d.credits.push(cr)
+    s.credit_id = cr.id
+    if (d.settings.auto_offset) {
+      cr.remaining = E.autoAllocate(d, { memberId: s.member_id, amount: s.amount, creditId: cr.id, user })
+    }
+  }
+  log(d, user, 'approve', 'service', s.id, { no: s.no, amount: s.amount, method })
+  commit()
+  return servicePub(d, s)
+})
+
 // vouchers
 route('GET', '/api/vouchers', ({ query }) => {
   require(['admin', 'finance', 'accountant', 'ceo', 'auditor'])
@@ -902,6 +1083,69 @@ route('GET', '/api/reports/member-settlement', () => {
   return d.members.filter(m => m.is_active).map(m => E.memberStatement(d, m.id))
 })
 
+// دریل‌داون هزینه‌ها — سه سطح: دسته ← پروژه ← اسناد
+route('GET', '/api/reports/expense-drill', ({ query }) => {
+  require(['admin', 'finance', 'accountant', 'ceo', 'auditor'])
+  const d = db()
+  const q = query || {}
+  const month = q.month || null
+  let rows = []
+  for (const { l, v } of E._baseRowsPublic(d, null, null)) {
+    if (l.debit <= 0) continue
+    const code = l.account_code
+    if (!(code.startsWith('5') || code === '1301')) continue
+    if (month) {
+      const [jy, jm] = isoToJalali(v.vdate)
+      if (month !== `${jy}-${String(jm).padStart(2, '0')}`) continue
+    }
+    rows.push({ l, v })
+  }
+  const level = Number(q.level || 1)
+  if (level === 1) {
+    const byCat = {}
+    for (const { l } of rows) {
+      const col = l.account_code === '1301' ? '1301' : l.account_code.slice(0, 4)
+      byCat[col] = (byCat[col] || 0) + l.debit
+    }
+    return {
+      scope: 'category',
+      rows: Object.entries(byCat).map(([code, amount]) => ({ key: code, label: E.accName(d, code), amount }))
+        .sort((a, b) => b.amount - a.amount),
+      total: Object.values(byCat).reduce((s, x) => s + x, 0),
+    }
+  }
+  const cat = q.cat || ''
+  rows = rows.filter(({ l }) => (l.account_code === '1301' ? '1301' : l.account_code.slice(0, 4)) === cat)
+  if (level === 2) {
+    const byProj = {}
+    for (const { l } of rows) {
+      const key = l.project_id || 0
+      byProj[key] = (byProj[key] || 0) + l.debit
+    }
+    return {
+      scope: 'project', cat,
+      rows: Object.entries(byProj).map(([pid, amount]) => ({
+        key: Number(pid),
+        label: Number(pid) ? (d.projects.find(p => p.id === Number(pid))?.name || 'پروژه') : 'بدون پروژه',
+        amount,
+      })).sort((a, b) => b.amount - a.amount),
+      total: rows.reduce((s, { l }) => s + l.debit, 0),
+    }
+  }
+  const proj = Number(q.project || -1)
+  rows = rows.filter(({ l }) => (l.project_id || 0) === proj)
+  rows.sort((a, b) => b.v.vdate.localeCompare(a.v.vdate))
+  return {
+    scope: 'rows', cat, project: proj,
+    rows: rows.map(({ l, v }) => ({
+      voucher_no: v.no, voucher_id: v.id, date: v.vdate,
+      desc: l.description || v.description, account: E.accName(d, l.account_code),
+      amount: l.debit,
+    })),
+    total: rows.reduce((s, { l }) => s + l.debit, 0),
+  }
+})
+
 // dashboard / analytics / audit
 route('GET', '/api/dashboard', () => {
   require(['admin', 'finance', 'accountant', 'ceo', 'auditor'])
@@ -979,12 +1223,28 @@ function buildDashboard (d) {
     }
   }
   const projects = Object.entries(byProject).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount)
+  const fundingList = fundings.map(f => {
+    let fCollected = 0
+    for (const c of d.commitments.filter(c => c.funding_id === f.id)) fCollected += E.commitmentPaid(d, c)
+    return {
+      id: f.id, no: f.no, title: f.title, amount: f.amount, collected: fCollected,
+      remaining: Math.max(f.amount - fCollected, 0),
+      progress: f.amount ? Math.floor(fCollected * 100 / f.amount) : 0, due_date: f.due_date || '',
+    }
+  }).sort((a, b) => b.id - a.id)
+  const svcRows = d.services
   const alerts = E.runAnalytics(d).filter(a => ['due', 'cash_forecast'].includes(a.type)).slice(0, 4)
   return {
     cash_total: Object.values(cash).reduce((s2, x) => s2 + x, 0),
     cash_detail: Object.entries(cash).map(([code, amount]) => ({ code, amount })),
     pnl_year: { ...pnlYear, profit: pnlYear.total_revenue - pnlYear.total_expense },
     funding: { approved_amount: approvedAmount, collected, remaining: commitmentsRemaining },
+    fundings: fundingList,
+    services: {
+      pending_count: svcRows.filter(s => ['draft', 'pending'].includes(s.status)).length,
+      pending_amount: svcRows.filter(s => ['draft', 'pending'].includes(s.status)).reduce((s2, x) => s2 + x.amount, 0),
+      compensated_amount: svcRows.filter(s => s.status === 'compensated').reduce((s2, x) => s2 + x.amount, 0),
+    },
     unpaid_expenses: unpaid,
     members, monthly, categories, projects, alerts,
     recent_activity: d.audit.slice(0, 10),

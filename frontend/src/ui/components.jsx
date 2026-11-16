@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { formatJalali, todayIso, isoToJalali, jalaliToIso, JMONTHS, jalaliMonthLength, currentJYear } from '../lib/jalali.js'
-import { parseMoney, groupMoney, fmtMoney } from '../lib/format.js'
+import { parseMoney, groupMoney, fmtMoney, faNum } from '../lib/format.js'
 import { useApp } from '../App.jsx'
 import { useToast } from './Toast.jsx'
 
@@ -20,6 +20,13 @@ const PATHS = {
   users: 'M15 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M8.5 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM19 8v6M22 11h-6',
   settings: 'M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.9 2.9l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.9-2.9l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.9-2.9l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.9 2.9l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.5 1Z',
   logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
+  help: 'circle cx=12 cy=12 r=9 | M9.3 9.2a2.8 2.8 0 0 1 5.5.7c0 1.6-2.3 2.2-2.8 3.5 | M12 16.8h.01',
+  book: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20 | M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z',
+  services: 'M14.2 6.4a4.3 4.3 0 0 1-6.1 4.9L4.6 14.8a1.8 1.8 0 0 0 0 2.6l2 2a1.8 1.8 0 0 0 2.6 0l3.5-3.5a4.3 4.3 0 0 1 4.9-6.1l-2.6 2.6-2.3-2.3 2.6-2.6Z',
+  idcard: 'M3 5.5h18v13H3zM7.5 13.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM5 16.5c.4-1.5 1.4-2 2.5-2s2.1.5 2.5 2 | M14.5 10h4M14.5 13.5h4',
+  chevronL: 'M14 6l-6 6 6 6',
+  chevronR: 'M10 6l6 6-6 6',
+  sparkle: 'M12 3l1.7 5.1L19 10l-5.3 1.9L12 17l-1.7-5.1L5 10l5.3-1.9L12 3Z',
   plus: 'M12 5v14M5 12h14',
   edit: 'M11 4H4v16h16v-7M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5Z',
   trash: 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6',
@@ -175,7 +182,7 @@ export function JDate ({ value, onChange, from = 1390, to }) {
 }
 
 /* ================= نمودار میله‌ای ================= */
-export function BarChart ({ data, height = 220, money = true, unit = 'toman', colors = ['#4f46e5', '#10b981'] }) {
+export function BarChart ({ data, height = 220, money = true, unit = 'toman', colors = ['#4f46e5', '#10b981'], onItemClick }) {
   if (!data.length) return <div className="empty">داده‌ای برای نمایش نیست</div>
   const max = Math.max(...data.flatMap(d => d.values))
   const W = 640, H = height, padB = 34, padT = 16
@@ -197,8 +204,10 @@ export function BarChart ({ data, height = 220, money = true, unit = 'toman', co
       ))}
       {data.map((d, i) => {
         const x0 = 10 + i * gw
+        const clickable = onItemClick && d.values.length === 1
         return (
-          <g key={d.label}>
+          <g key={d.label} className={clickable ? 'chart-click' : ''} onClick={clickable ? () => onItemClick(d) : undefined}
+            style={clickable ? { cursor: 'pointer' } : undefined}>
             {d.values.map((v, j) => {
               const h = max ? (v / max) * (H - padB - padT) : 0
               const x = x0 + gw / 2 - (bw * d.values.length) / 2 + j * bw + 2
@@ -220,7 +229,7 @@ export function BarChart ({ data, height = 220, money = true, unit = 'toman', co
 }
 
 /* ================= نمودار خطی ================= */
-export function LineChart ({ data, height = 230, unit = 'toman' }) {
+export function LineChart ({ data, height = 230, unit = 'toman', onItemClick }) {
   if (!data.length) return <div className="empty">داده‌ای برای نمایش نیست</div>
   const W = 660, H = height, padB = 36, padT = 18, padS = 12
   const max = Math.max(1, ...data.flatMap(d => d.values))
@@ -251,7 +260,8 @@ export function LineChart ({ data, height = 230, unit = 'toman' }) {
       <path d={line(0)} fill="none" stroke="#4f46e5" strokeWidth="2.6" strokeLinecap="round" />
       <path d={line(1)} fill="none" stroke="#10b981" strokeWidth="2.6" strokeLinecap="round" />
       {pts.map((p, i) => (
-        <g key={i}>
+        <g key={i} className={onItemClick ? 'chart-click' : ''} onClick={onItemClick ? () => onItemClick(data[i]) : undefined}
+          style={onItemClick ? { cursor: 'pointer' } : undefined}>
           {p.map((pt, j) => <circle key={j} cx={pt[0]} cy={pt[1]} r="3.4" fill="#fff" stroke={['#4f46e5', '#10b981'][j]} strokeWidth="2">
             <title>{`${data[i].series?.[j] || ''}: ${fmtMoney(data[i].values[j], unit)}`}</title>
           </circle>)}
@@ -262,43 +272,39 @@ export function LineChart ({ data, height = 230, unit = 'toman' }) {
   )
 }
 
-/* ================= نمودار دونات ================= */
-export function Donut ({ items, size = 170, unit = 'toman' }) {
-  const total = items.reduce((s, i) => s + i.value, 0)
-  if (!total) return <div className="empty">داده‌ای برای نمایش نیست</div>
-  const COLORS = ['#4f46e5', '#7c3aed', '#0ea5a4', '#f59e0b', '#ef4444', '#0284c7', '#64748b']
-  let acc = 0
-  const r = 56, c = 2 * Math.PI * r
+/* ================= نمودار میله‌ای افقی (جایگزین دایره‌ای — با دریل‌داون) ================= */
+export function HBar ({ items, unit = 'toman', onItemClick, maxHeight = 360, compact = false, emptyText }) {
+  const usable = (items || []).filter(i => i.value > 0 || i.showZero)
+  if (!usable.length) return <Empty text={emptyText || 'داده‌ای برای نمایش نیست'} />
+  const total = usable.reduce((s, i) => s + i.value, 0) || 1
+  const max = Math.max(...usable.map(i => i.value)) || 1
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
-      <svg width={size} height={size} viewBox="0 0 140 140" style={{ direction: 'ltr' }}>
-        <circle cx="70" cy="70" r={r} fill="none" stroke="#eef1f7" strokeWidth="22" />
-        {items.map((it, i) => {
-          const frac = it.value / total
-          const dash = `${frac * c} ${c}`
-          const off = -acc * c
-          acc += frac
-          return (
-            <circle key={i} cx="70" cy="70" r={r} fill="none" stroke={COLORS[i % COLORS.length]}
-              strokeWidth="22" strokeDasharray={dash} strokeDashoffset={off} transform="rotate(-90 70 70)">
-              <title>{`${it.label}: ${fmtMoney(it.value, unit)}`}</title>
-            </circle>
-          )
-        })}
-        <text x="70" y="66" textAnchor="middle" fontSize="11" fill="#5a6478">جمع</text>
-        <text x="70" y="82" textAnchor="middle" fontSize="12.5" fontWeight="700" fill="#16213e">
-          {fmtMoney(total, unit)}
-        </text>
-      </svg>
-      <div>
-        {items.map((it, i) => (
-          <div key={i} className="legend-item" style={{ marginBottom: 6 }}>
-            <i style={{ background: COLORS[i % COLORS.length] }} />
-            <span>{it.label}</span>
-            <b className="num" style={{ marginRight: 6 }}>{fmtMoney(it.value, unit)}</b>
+    <div className="hbar" style={{ maxHeight, overflowY: 'auto' }}>
+      {usable.map((it, i) => {
+        const pct = Math.round(it.value * 100 / total)
+        const w = Math.max(3, Math.round(it.value * 100 / max))
+        return (
+          <div key={i}
+            className={`hbar-row ${onItemClick ? 'clickable' : ''} ${it.dim ? 'dim' : ''}`}
+            onClick={onItemClick ? () => onItemClick(it) : undefined}
+            title={onItemClick ? 'برای مشاهده سطح بعدی کلیک کنید' : undefined}>
+            <span className="hbar-rank num">{faNum(i + 1)}</span>
+            <div className="hbar-mid">
+              <div className="hbar-topline">
+                <span className="hbar-label">{it.label}{it.extra && <em className="small muted"> {it.extra}</em>}</span>
+                <span className="hbar-value num">
+                  {it.plain ? faNum(it.value) : fmtMoney(it.value, unit)}
+                  <i className="hbar-pct">{faNum(pct)}٪</i>
+                </span>
+              </div>
+              <div className="hbar-track">
+                <div className="hbar-fill" style={{ width: `${w}%`, background: it.color || undefined }} />
+              </div>
+            </div>
+            {onItemClick && <span className="hbar-go"><Icon name="chevronL" size={13} /></span>}
           </div>
-        ))}
-      </div>
+        )
+      })}
     </div>
   )
 }

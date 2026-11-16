@@ -2,7 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-const FRONT = path.join(path.dirname(new import.meta.url.replace('file://', '')), '..')
+const FRONT = path.join(path.dirname(new URL(import.meta.url).pathname), '..')
 const DIST = path.join(FRONT, 'dist')
 const OUT = path.join(FRONT, '..', 'Maliyar-Portable.html')
 

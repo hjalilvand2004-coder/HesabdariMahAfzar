@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { useApp } from '../App.jsx'
+import { useApp, navigate } from '../App.jsx'
 import { call } from '../api/index.js'
 import { Badge, Modal, Icon, JDate, JDateText, Empty, Money, useToast } from '../ui/components.jsx'
-import { fmtMoney, fmtBp } from '../lib/format.js'
+import { HelpButton } from '../ui/Help.jsx'
+import { fmtMoney, fmtBp, stypeLabels, serviceStatusLabels } from '../lib/format.js'
 import { formatJalali } from '../lib/jalali.js'
 
 export default function Members ({ user }) {
@@ -50,14 +51,21 @@ export default function Members ({ user }) {
 
   return (
     <div className="page">
-      <div className="card mb">
-        <div className="pad" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-          <b>اعضا، سهامداران و طرف‌های حساب</b>
+      <div className="page-head mb">
+        <div className="page-head-main">
+          <span className="page-head-icon"><Icon name="members" size={21} /></span>
+          <div>
+            <h2>اعضا و سهامداران</h2>
+            <div className="small muted" style={{ marginTop: 3 }}>دفتر اعضا با تاریخچه سهام — پروفایل مالی کامل هر شخص در «پروفایل اشخاص»</div>
+          </div>
+        </div>
+        <div className="page-head-actions">
           {canManage && (
             <button className="btn btn-primary" onClick={() => setAddForm({ code: '', full_name: '', kind: 'person', national_id: '', phone: '', email: '', bank_account: '', note: '' })}>
-              <Icon name="plus" size={17} /> عضو جدید
+              <Icon name="plus" size={16} /> عضو جدید
             </button>
           )}
+          <HelpButton topic="members" label="" />
         </div>
       </div>
 
@@ -93,6 +101,9 @@ export default function Members ({ user }) {
             <button className="tab active">وضعیت حساب</button>
             <button className="tab" onClick={() => setAddForm({ member_id: sel.id, share: { percent_bp: 0, from_date: '', to_date: null, doc_ref: '', note: '' } })}>
               + افزودن تغییر سهام
+            </button>
+            <button className="tab" onClick={() => { setSel(null); navigate(`/profile/${sel.id}`) }}>
+              <Icon name="idcard" size={14} /> پروفایل کامل مالی (تایم‌لاین و تراز نهایی)
             </button>
           </div>
 
@@ -158,6 +169,28 @@ export default function Members ({ user }) {
               ))}
             </tbody>
           </table>
+
+          {statement.services.length > 0 && (
+            <>
+              <h4 style={{ margin: '18px 0 8px', fontSize: 14 }}>خدمات ارائه‌شده عضو و وضعیت جبران</h4>
+              <table className="tbl">
+                <thead><tr><th>شماره</th><th>تاریخ</th><th>نوع</th><th>عنوان</th><th>مبلغ</th><th>جبران</th><th>وضعیت</th></tr></thead>
+                <tbody>
+                  {statement.services.map(s => (
+                    <tr key={s.id}>
+                      <td className="num">{s.no}</td>
+                      <td><JDateText iso={s.sdate} /></td>
+                      <td className="small">{stypeLabels[s.stype]}</td>
+                      <td>{s.title}</td>
+                      <td><Money rial={s.amount} unit={unit} /></td>
+                      <td className="small">{s.status === 'compensated' ? (s.comp_method === 'credit' ? 'اعتباری (تهاتر)' : 'نقدی') : '—'}</td>
+                      <td><Badge k={s.status === 'compensated' ? 'paid' : s.status === 'pending' ? 'pending' : s.status === 'draft' ? 'draft' : 'rejected'} text={serviceStatusLabels[s.status]} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
 
           {statement.credits.length > 0 && (
             <>

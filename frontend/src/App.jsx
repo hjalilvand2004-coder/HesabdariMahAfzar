@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { call, IS_PORTABLE, clearToken, getToken } from './api/index.js'
+import { permOf, DEFAULT_ROLE_PERMS } from './lib/format.js'
 import Login from './pages/Login.jsx'
 import Layout from './ui/Layout.jsx'
 import ToastHost from './ui/Toast.jsx'
@@ -9,6 +10,8 @@ import Expenses from './pages/Expenses.jsx'
 import Funding from './pages/Funding.jsx'
 import Payments from './pages/Payments.jsx'
 import Members from './pages/Members.jsx'
+import Services from './pages/Services.jsx'
+import Profiles from './pages/Profiles.jsx'
 import Accounts from './pages/Accounts.jsx'
 import Vouchers from './pages/Vouchers.jsx'
 import Reports from './pages/Reports.jsx'
@@ -41,16 +44,24 @@ const ROUTES = {
   '/expenses': { comp: Expenses, roles: null, title: 'هزینه‌ها و خریدها' },
   '/funding': { comp: Funding, roles: null, title: 'تأمین مالی اعضا' },
   '/payments': { comp: Payments, roles: null, title: 'پرداخت‌ها و وصول' },
+  '/services': { comp: Services, roles: null, title: 'خدمات اعضا و جبران خدمات' },
   '/members': { comp: Members, roles: STAFF, title: 'اعضا و سهامداران' },
+  '/profiles': { comp: Profiles, roles: STAFF, title: 'پروفایل اشخاص' },
   '/accounts': { comp: Accounts, roles: STAFF, title: 'کدینگ حساب‌ها' },
   '/vouchers': { comp: Vouchers, roles: STAFF, title: 'اسناد حسابداری' },
   '/reports': { comp: Reports, roles: STAFF, title: 'دفاتر و گزارش‌ها' },
   '/statements': { comp: Statements, roles: STAFF, title: 'صورت‌های مالی' },
   '/analytics': { comp: Analytics, roles: STAFF, title: 'تحلیل‌های هوشمند' },
   '/audit': { comp: Audit, roles: ['admin', 'finance', 'auditor'], title: 'ردپای حسابرسی' },
-  '/users': { comp: Users, roles: ['admin'], title: 'کاربران و نقش‌ها' },
+  '/users': { comp: Users, roles: ['admin'], title: 'مدیریت کاربران و سطح دسترسی' },
   '/settings': { comp: Settings, roles: null, title: 'تنظیمات' },
   '/my-account': { comp: MyAccount, roles: ['member'], title: 'وضعیت حساب من' },
+}
+
+// کلید ماژول برای ماتریس دسترسی — مسیر بدون اسلش اول
+const moduleKeyOf = (route) => {
+  if (route.startsWith('/profile/')) return 'profiles'
+  return route.replace(/^\//, '')
 }
 
 export default function App () {
@@ -87,6 +98,8 @@ export default function App () {
     }
     setUser(res.user)
     setSettings(await call('GET', '/api/settings'))
+    // مسیر شروع هر نقش — هش جلسه قبلی پاک می‌شود تا دسترسی اشتباه نشان داده نشود
+    navigate(res.user.role === 'member' ? '/my-account' : '/dashboard')
     return res
   }, [])
 
@@ -106,23 +119,31 @@ export default function App () {
 
   if (!user) {
     return (
-      <ToastHost>
-        <Login onLogin={login} />
-      </ToastHost>
+      <AppCtx.Provider value={{ user, logout, settings, refreshSettings, call, navigate }}>
+        <ToastHost>
+          <Login onLogin={login} />
+        </ToastHost>
+      </AppCtx.Provider>
     )
   }
 
-  const current = ROUTES[route] || ROUTES['/dashboard']
-  const canAccess = !current.roles || current.roles.includes(user.role)
-  const activeRoute = canAccess ? route : '/dashboard'
+  const effectiveRoute = route.startsWith('/profile/') ? '/profiles' : route
+  const current = ROUTES[effectiveRoute] || ROUTES['/dashboard']
+  // دسترسی: ابتدا ماتریس سطح دسترسی (تنظیمات)، سپس قید نقش روت
+  const modKey = moduleKeyOf(effectiveRoute)
+  const permsAllow = settings ? permOf(settings, user.role, modKey) : (DEFAULT_ROLE_PERMS[user.role] || []).includes(modKey)
+  const rolesAllow = !current.roles || current.roles.includes(user.role)
+  const canAccess = permsAllow && rolesAllow
+  const activeRoute = canAccess ? effectiveRoute : '/dashboard'
+  const pageTitle = ROUTES[activeRoute].title
 
   return (
     <AppCtx.Provider value={{ user, logout, settings, refreshSettings, call, navigate }}>
       <ToastHost>
-        <Layout route={activeRoute} title={ROUTES[activeRoute].title} routes={ROUTES}>
+        <Layout route={activeRoute} title={pageTitle} routes={ROUTES}>
           {canAccess
-            ? <current.comp key={route} user={user} settings={settings} refreshSettings={refreshSettings} />
-            : <div className="page"><div className="card pad center muted">به این بخش دسترسی ندارید.</div></div>}
+            ? <current.comp key={effectiveRoute} user={user} settings={settings} refreshSettings={refreshSettings} />
+            : <div className="page"><div className="card pad center muted">به این بخش دسترسی ندارید؛ با مدیر سامانه تماس بگیرید.</div></div>}
         </Layout>
       </ToastHost>
     </AppCtx.Provider>

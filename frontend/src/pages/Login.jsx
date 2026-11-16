@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useToast } from '../ui/Toast.jsx'
 import { Icon } from '../ui/components.jsx'
+import { GuideButton } from '../ui/Guide.jsx'
 
 const DEMO_USERS = [
   { u: 'admin', n: 'مدیر سامانه' }, { u: 'finance', n: 'مدیر مالی' },
@@ -83,6 +84,12 @@ export default function Login ({ onLogin }) {
           {busy ? 'در حال بررسی…' : 'ورود به سامانه'}
         </button>
         <div className="form-err">{err}</div>
+
+        <div className="login-guide-row">
+          <Icon name="book" size={15} />
+          <span>قبل از شروع، <b>راهنمای جامع</b> را ببینید: منطق تأمین مالی سهامداران، محاسبه سهم از هزینه‌ها، جبران خدمات و تسویه.</span>
+          <GuideButton />
+        </div>
 
         <div className="login-hint">
           <b>کاربران نمونه (رمز همه: <span className="num">123456</span>)</b><br />
