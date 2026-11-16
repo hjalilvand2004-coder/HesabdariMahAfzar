@@ -74,6 +74,15 @@ export const serviceStatusLabels = {
 }
 export const compMethodLabels = { credit: 'از محل اعتبار حساب (تهاتر)', cash: 'پرداخت نقدی' }
 
+// ---------- کیف پول اعضا ----------
+export const walletTypeLabels = {
+  charge: 'شارژ کیف پول', settle: 'تسویه تعهدات از کیف پول', spend: 'برداشت از کیف پول',
+}
+export const walletStatusLabels = {
+  pending: 'در انتظار تأیید', approved: 'تأییدشده', rejected: 'ردشده', failed: 'ناموفق (بانک)',
+}
+export const walletMethodLabels = { gateway: 'درگاه بانک ملی', manual: 'اعلام واریز دستی' }
+
 // ---------- مدیریت کاربران و سطح دسترسی ----------
 export const MODULES = [
   { key: 'dashboard', label: 'داشبورد مدیریتی', group: 'میزکار' },
@@ -81,6 +90,7 @@ export const MODULES = [
   { key: 'expenses', label: 'هزینه‌ها و خریدها', group: 'عملیات مالی' },
   { key: 'funding', label: 'تأمین مالی اعضا', group: 'عملیات مالی' },
   { key: 'payments', label: 'پرداخت‌ها و وصول', group: 'عملیات مالی' },
+  { key: 'wallet', label: 'کیف پول اعضا', group: 'عملیات مالی' },
   { key: 'services', label: 'خدمات اعضا و جبران خدمات', group: 'عملیات مالی' },
   { key: 'members', label: 'اعضا و سهامداران', group: 'عملیات مالی' },
   { key: 'profiles', label: 'پروفایل اشخاص', group: 'عملیات مالی' },
@@ -103,13 +113,19 @@ export const DEFAULT_ROLE_PERMS = {
   accountant: [...STAFF_MODULES],
   ceo: [...STAFF_MODULES],
   auditor: ['dashboard', 'analytics', 'members', 'profiles', 'accounts', 'vouchers', 'reports', 'statements', 'audit'],
-  member: ['my-account'],
+  member: ['my-account', 'wallet'],
 }
 
-// دسترسی مؤثر: ماتریس ذخیره‌شده در تنظیمات، وگرنه پیش‌فرض
+// دسترسی مؤثر: ماتریس ذخیره‌شده در تنظیمات، وگرنه پیش‌فرض.
+// اگر ماژولی بعد از آخرین ذخیره‌ی ماتریس به سامانه اضافه شده باشد (در هیچ نقشی ثبت نشده است)
+// از پیش‌فرض استاندارد استفاده می‌شود تا قابلیت جدید برای همه نقش‌های مجاز قفل نشود.
 export function permOf (settings, role, moduleKey) {
   const matrix = settings?.role_perms
-  if (matrix && Array.isArray(matrix[role])) return matrix[role].includes(moduleKey)
+  if (matrix && Array.isArray(matrix[role])) {
+    const known = Object.values(matrix).some(a => Array.isArray(a) && a.includes(moduleKey))
+    if (!known) return (DEFAULT_ROLE_PERMS[role] || []).includes(moduleKey)
+    return matrix[role].includes(moduleKey)
+  }
   return (DEFAULT_ROLE_PERMS[role] || []).includes(moduleKey)
 }
 

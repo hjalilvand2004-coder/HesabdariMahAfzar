@@ -38,6 +38,7 @@ export function emptyDB () {
     allocations: [],
     credits: [],
     services: [],
+    wallet: [],
     vouchers: [],
     audit: [],
   }

@@ -9,9 +9,11 @@ import Dashboard from './pages/Dashboard.jsx'
 import Expenses from './pages/Expenses.jsx'
 import Funding from './pages/Funding.jsx'
 import Payments from './pages/Payments.jsx'
+import Wallet from './pages/Wallet.jsx'
 import Members from './pages/Members.jsx'
 import Services from './pages/Services.jsx'
 import Profiles from './pages/Profiles.jsx'
+import Gateway from './ui/Gateway.jsx'
 import Accounts from './pages/Accounts.jsx'
 import Vouchers from './pages/Vouchers.jsx'
 import Reports from './pages/Reports.jsx'
@@ -44,6 +46,8 @@ const ROUTES = {
   '/expenses': { comp: Expenses, roles: null, title: 'هزینه‌ها و خریدها' },
   '/funding': { comp: Funding, roles: null, title: 'تأمین مالی اعضا' },
   '/payments': { comp: Payments, roles: null, title: 'پرداخت‌ها و وصول' },
+  '/wallet': { comp: Wallet, roles: null, title: 'کیف پول اعضا' },
+  '/gateway': { comp: Gateway, roles: null, title: 'درگاه پرداخت بانک ملی' },
   '/services': { comp: Services, roles: null, title: 'خدمات اعضا و جبران خدمات' },
   '/members': { comp: Members, roles: STAFF, title: 'اعضا و سهامداران' },
   '/profiles': { comp: Profiles, roles: STAFF, title: 'پروفایل اشخاص' },
@@ -61,6 +65,7 @@ const ROUTES = {
 // کلید ماژول برای ماتریس دسترسی — مسیر بدون اسلش اول
 const moduleKeyOf = (route) => {
   if (route.startsWith('/profile/')) return 'profiles'
+  if (route.startsWith('/gateway')) return null // درگاه بانک برای همه کاربران واردشده باز است
   return route.replace(/^\//, '')
 }
 
@@ -68,7 +73,9 @@ export default function App () {
   const [user, setUser] = useState(null)
   const [booting, setBooting] = useState(true)
   const [settings, setSettings] = useState(null)
-  const route = useHashRoute()
+  const rawRoute = useHashRoute()
+  // query هش (مثل /gateway?tx=3) از مسیر جدا می‌شود؛ خود صفحه پارامترها را می‌خواند
+  const route = rawRoute.split('?')[0]
 
   // عضو همیشه به پرتال اختصاصی خودش هدایت می‌شود، نه داشبورد مدیریتی
   useEffect(() => {
@@ -131,7 +138,9 @@ export default function App () {
   const current = ROUTES[effectiveRoute] || ROUTES['/dashboard']
   // دسترسی: ابتدا ماتریس سطح دسترسی (تنظیمات)، سپس قید نقش روت
   const modKey = moduleKeyOf(effectiveRoute)
-  const permsAllow = settings ? permOf(settings, user.role, modKey) : (DEFAULT_ROLE_PERMS[user.role] || []).includes(modKey)
+  const permsAllow = modKey == null ? true
+    : settings ? permOf(settings, user.role, modKey)
+      : (DEFAULT_ROLE_PERMS[user.role] || []).includes(modKey)
   const rolesAllow = !current.roles || current.roles.includes(user.role)
   const canAccess = permsAllow && rolesAllow
   const activeRoute = canAccess ? effectiveRoute : '/dashboard'

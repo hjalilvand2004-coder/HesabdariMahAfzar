@@ -680,3 +680,45 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   .guide-scroll { padding-inline-start: 0; }
   .topbar h1 { font-size: 15.5px; }
 }
+
+/* ==================== کیف پول و درگاه بانک ملی (v1.2) ==================== */
+.stat-grid-6 { grid-template-columns: repeat(6, 1fr); }
+
+/* صفحه درگاه پرداخت — سبک بانکی */
+.gw-wrap {
+  max-width: 560px; margin: 24px auto; background: #fff; border-radius: 20px;
+  box-shadow: var(--shadow-lg); overflow: hidden; border: 1px solid #dfe5f2;
+  animation: rise .3s ease-out;
+}
+.gw-head {
+  display: flex; align-items: center; gap: 13px; padding: 16px 22px;
+  background: linear-gradient(135deg, #12356e, #1e5bbf); color: #fff;
+}
+.gw-logo {
+  width: 46px; height: 46px; border-radius: 12px; background: #fff; color: #12356e;
+  display: grid; place-items: center; font-size: 14px; font-weight: 700; flex-shrink: 0;
+  border: 3px solid rgba(255, 255, 255, .35);
+}
+.gw-head-text b { display: block; font-size: 16px; }
+.gw-head-text span { font-size: 11.5px; opacity: .85; }
+.gw-secure {
+  margin-right: auto; font-size: 11px; background: rgba(255, 255, 255, .14);
+  border: 1px solid rgba(255, 255, 255, .3); border-radius: 999px; padding: 4px 11px;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.gw-body { padding: 20px 24px; }
+.gw-info { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+.gw-info td { padding: 8px 10px; border-bottom: 1px dashed var(--line); font-size: 13.5px; }
+.gw-info td:first-child { color: var(--ink-2); width: 130px; }
+.gw-amount { font-size: 17px; color: var(--primary-deep); }
+.gw-note {
+  background: var(--warn-soft); color: #92400e; border-radius: 11px;
+  padding: 10px 13px; font-size: 12px; line-height: 1.95; margin-bottom: 16px;
+}
+.gw-form { border-top: 1px solid var(--line); padding-top: 14px; }
+.gw-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+.gw-fail-link { margin-right: auto; opacity: .7; font-size: 11.5px; }
+.gw-foot { padding: 12px 24px; background: var(--bg-soft); border-top: 1px solid var(--line); }
+@media (max-width: 860px) {
+  .stat-grid-6 { grid-template-columns: repeat(2, 1fr); }
+}

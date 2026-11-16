@@ -12,11 +12,13 @@ const NAV = [
     { path: '/dashboard', icon: 'dashboard', label: 'داشبورد مدیریتی', roles: ['admin', 'finance', 'accountant', 'ceo', 'auditor'] },
     { path: '/analytics', icon: 'analytics', label: 'تحلیل‌های هوشمند', roles: ['admin', 'finance', 'accountant', 'ceo', 'auditor'] },
     { path: '/my-account', icon: 'wallet', label: 'وضعیت حساب من', roles: ['member'] },
+    { path: '/wallet', icon: 'wallet', label: 'کیف پول من', roles: ['member'] },
   ] },
   { group: 'عملیات مالی', items: [
     { path: '/expenses', icon: 'expenses', label: 'هزینه‌ها و خریدها' },
     { path: '/funding', icon: 'funding', label: 'تأمین مالی اعضا' },
     { path: '/payments', icon: 'payments', label: 'پرداخت‌ها و وصول' },
+    { path: '/wallet', icon: 'wallet', label: 'کیف پول اعضا', roles: ['admin', 'finance', 'accountant', 'ceo', 'auditor'] },
     { path: '/services', icon: 'services', label: 'خدمات اعضا و جبران خدمات' },
     { path: '/members', icon: 'members', label: 'اعضا و سهامداران', roles: ['admin', 'finance', 'accountant', 'ceo', 'auditor'] },
     { path: '/profiles', icon: 'idcard', label: 'پروفایل اشخاص', roles: ['admin', 'finance', 'accountant', 'ceo', 'auditor'] },

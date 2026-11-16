@@ -997,6 +997,260 @@ route('POST', /^\/api\/services\/(\d+)\/approve$/, ({ body, match }) => {
   return servicePub(d, s)
 })
 
+// ---------- کیف پول اعضا و درگاه بانک ملی ----------
+
+const walletPub = (d, w) => ({
+  ...w,
+  member_name: d.members.find(m => m.id === w.member_id)?.full_name || '',
+  commitment_no: w.commitment_id ? (d.funding.find(f => f.id === (d.commitments.find(c => c.id === w.commitment_id)?.funding_id))?.no || '') : '',
+})
+
+// سند شارژ کیف پول: بدهکار بانک / بستانکار جاری عضو + ردیف اعتبار
+function postWalletCharge (d, w, user) {
+  const m = d.members.find(m => m.id === w.member_id)
+  const taf = E.tafsilForMember(d, w.member_id)
+  const bt = E.tafsilForBank(d, w.bank_id || 1)
+  const accCode = bt?.ref_id === 2 ? '1101' : '11021'
+  const v = E.postVoucher(d, {
+    vdate: w.wdate, description: `شارژ کیف پول ${w.no} — ${m?.full_name || ''}${w.gateway_ref ? ` (درگاه بانک ملی، مرجع ${w.gateway_ref})` : ''}`,
+    lines: [
+      { account_code: accCode, tafsil_id: bt?.id ?? null, tafsil_name: bt?.name || '', debit: w.amount, description: 'واریز به حساب شرکت' },
+      { account_code: '2102', tafsil_id: taf?.id ?? null, tafsil_name: m?.full_name || '', credit: w.amount, description: 'شارژ کیف پول عضو — مطالبه عضو از شرکت' },
+    ],
+    sourceType: 'wallet', sourceId: w.id, idemKey: `wallet:${w.id}`, user,
+  })
+  w.voucher_id = v.id
+  const cr = {
+    id: nextId(d, 'credits'), member_id: w.member_id, expense_id: null,
+    amount: w.amount, remaining: w.amount,
+    note: `شارژ کیف پول ${w.no}`, created_at: new Date().toISOString(),
+  }
+  d.credits.push(cr)
+  return cr
+}
+
+// تخصیص اعتبار به یک تعهد مشخص (برای پرداخت مستقیم از کارتابل)
+function allocateCreditToCommitment (d, credit, commitmentId, user) {
+  const c = d.commitments.find(x => x.id === commitmentId)
+  if (!c) throw new HttpError(404, 'تعهد یافت نشد')
+  const remaining = Math.max(c.amount - E.commitmentPaid(d, c), 0)
+  const take = Math.min(credit.remaining, remaining)
+  if (take <= 0) return 0
+  d.allocations.push({
+    id: nextId(d, 'allocations'), commitment_id: c.id,
+    payment_id: null, credit_id: credit.id, amount: take,
+    created_at: new Date().toISOString(),
+  })
+  credit.remaining -= take
+  return take
+}
+
+route('GET', '/api/wallet', ({ query }) => {
+  const u = require()
+  const d = db()
+  if (u.role === 'member') {
+    const mid = u.member_id
+    const st = E.memberStatement(d, mid)
+    return {
+      balance: E.walletBalance(d, mid),
+      txs: st.wallet.map(w => walletPub(d, w)),
+      commitments: st.commitments.filter(c => c.remaining > 0),
+    }
+  }
+  const mid = query?.member_id ? Number(query.member_id) : null
+  let txs = [...d.wallet].sort((a, b) => b.id - a.id).map(w => walletPub(d, w))
+  if (mid) txs = txs.filter(w => w.member_id === mid)
+  const members = d.members.map(m => ({
+    member_id: m.id, full_name: m.full_name, code: m.code,
+    balance: E.walletBalance(d, m.id),
+    pending: d.wallet.filter(w => w.member_id === m.id && w.type === 'charge' && w.status === 'pending').reduce((s, w) => s + w.amount, 0),
+  }))
+  return { balance: null, txs, members }
+})
+
+// شارژ کیف پول — عضو از پرتال خودش یا کارمند برای عضو
+route('POST', '/api/wallet/charge', ({ body }) => {
+  const u = require()
+  const d = db()
+  const mid = u.role === 'member' ? u.member_id : Number(body.member_id)
+  if (!mid) throw new HttpError(400, 'عضو باید مشخص شود')
+  const amount = Number(body.amount || 0)
+  if (amount <= 0) throw new HttpError(400, 'مبلغ شارژ باید بزرگ‌تر از صفر باشد')
+  if (!body.wdate) throw new HttpError(400, 'تاریخ شارژ الزامی است')
+  const method = body.method === 'gateway' ? 'gateway' : 'manual'
+  if (method === 'manual' && !body.bank_id) throw new HttpError(400, 'برای اعلام واریز دستی، حساب بانکی باید انتخاب شود')
+  const w = {
+    id: nextId(d, 'wallet'),
+    no: E.nextNumberLocal(d, 'wallet', body.wdate, { wallet: 'WLT' }),
+    wdate: body.wdate, member_id: mid, type: 'charge', amount,
+    method, gateway: method === 'gateway' ? 'melli' : null,
+    bank_id: body.bank_id ?? null, tracking_no: body.tracking_no || '',
+    gateway_ref: '', note: body.note || (method === 'gateway' ? 'شارژ کیف پول از درگاه بانک ملی' : 'اعلام شارژ کیف پول — واریز دستی'),
+    purpose: body.commitment_id ? 'commitment' : null,
+    commitment_id: body.commitment_id ? Number(body.commitment_id) : null,
+    status: 'pending', approved_by: '', voucher_id: null,
+    created_by: u.username, created_at: new Date().toISOString(),
+  }
+  d.wallet.push(w)
+  log(d, u, 'create', 'wallet', w.id, { no: w.no, amount, method })
+  commit()
+  const out = walletPub(d, w)
+  if (method === 'gateway') {
+    // نقطه اتصال به وب‌سرویس بانک ملی — در نسخه سرور، url واقعی درگاه برگردانده می‌شود
+    out.gateway_url = `#/gateway?tx=${w.id}`
+    out.gateway_mode = 'simulator'
+  }
+  return out
+})
+
+route('GET', /^\/api\/wallet\/tx\/(\d+)$/, ({ match }) => {
+  const u = require()
+  const d = db()
+  const w = d.wallet.find(x => x.id === Number(match[1]))
+  if (!w) throw new HttpError(404, 'تراکنش کیف پول یافت نشد')
+  if (u.role === 'member' && w.member_id !== u.member_id) throw new HttpError(403, 'فقط تراکنش‌های خودتان قابل مشاهده است')
+  const m = d.members.find(m => m.id === w.member_id)
+  return {
+    ...walletPub(d, w),
+    merchant: d.settings.company_name,
+    order_no: w.no,
+    gateway_label: 'بانک ملی ایران — درگاه پرداخت اینترنتی',
+  }
+})
+
+// تأیید/رد شارژ دستی توسط مدیر مالی
+route('POST', /^\/api\/wallet\/charges\/(\d+)\/approve$/, ({ body, match }) => {
+  const user = require(['finance', 'admin'])
+  const d = db()
+  const w = d.wallet.find(x => x.id === Number(match[1]))
+  if (!w) throw new HttpError(404, 'تراکنش کیف پول یافت نشد')
+  if (w.status !== 'pending') throw new HttpError(400, 'این تراکنش در جریان بررسی است')
+  if (body.decision === 'reject') {
+    w.status = 'rejected'
+    w.approved_by = user.username
+    w.note += ` — رد توسط ${user.username}: ${body.note || ''}`
+    log(d, user, 'reject', 'wallet', w.id, { no: w.no })
+    commit()
+    return { ok: true, status: 'rejected' }
+  }
+  if (w.type !== 'charge') throw new HttpError(400, 'فقط شارژ قابل تأیید است')
+  w.status = 'approved'
+  w.approved_by = user.username
+  const cr = postWalletCharge(d, w, user)
+  log(d, user, 'approve', 'wallet', w.id, { no: w.no, amount: w.amount, voucher: w.voucher_id })
+  commit()
+  return { ok: true, status: 'approved', balance: E.walletBalance(d, w.member_id), credit_id: cr.id, voucher_id: w.voucher_id }
+})
+
+// تسویه تعهدات از کیف پول — تا سقف موجودی، تعهدهای باز به ترتیب مصوبه
+route('POST', '/api/wallet/settle', ({ body }) => {
+  const u = require()
+  const d = db()
+  const mid = u.role === 'member' ? u.member_id : Number(body.member_id)
+  if (!mid) throw new HttpError(400, 'عضو باید مشخص شود')
+  const balance = E.walletBalance(d, mid)
+  if (balance <= 0) throw new HttpError(400, 'موجودی کیف پول برای تسویه صفر است')
+  const open = d.commitments
+    .filter(c => c.member_id === mid)
+    .filter(c => d.funding.find(f => f.id === c.funding_id)?.status === 'approved')
+    .sort((a, b) => a.id - b.id)
+  let left = body.amount ? Math.min(Number(body.amount), balance) : balance
+  if (left <= 0) throw new HttpError(400, 'مبلغ تسویه نامعتبر است')
+  const today = todayIso()
+  const w = {
+    id: nextId(d, 'wallet'),
+    no: E.nextNumberLocal(d, 'wallet', today, { wallet: 'WLT' }),
+    wdate: today, member_id: mid, type: 'settle', amount: left,
+    method: 'wallet', gateway: null, bank_id: null, tracking_no: '',
+    gateway_ref: '', note: 'تسویه تعهدات مصوب از موجودی کیف پول',
+    purpose: null, commitment_id: null, status: 'approved',
+    approved_by: u.username, voucher_id: null, created_by: u.username,
+    created_at: new Date().toISOString(),
+  }
+  d.wallet.push(w)
+  let allocatedTotal = 0
+  for (const c of open) {
+    if (left <= 0) break
+    const remaining = Math.max(c.amount - E.commitmentPaid(d, c), 0)
+    if (remaining <= 0) continue
+    const take = Math.min(left, remaining)
+    const walletCredit = d.credits.find(cr => cr.member_id === mid && cr.remaining > 0 && cr.note?.startsWith('شارژ کیف پول'))
+    if (!walletCredit) break
+    d.allocations.push({
+      id: nextId(d, 'allocations'), commitment_id: c.id,
+      payment_id: null, credit_id: walletCredit.id, amount: take,
+      created_at: new Date().toISOString(),
+    })
+    walletCredit.remaining -= take
+    left -= take
+    allocatedTotal += take
+  }
+  if (allocatedTotal <= 0) {
+    d.wallet = d.wallet.filter(x => x.id !== w.id)
+    throw new HttpError(400, 'تعهد باز قابل تسویه یافت نشد')
+  }
+  w.amount = allocatedTotal
+  log(d, u, 'settle', 'wallet', w.id, { no: w.no, amount: allocatedTotal })
+  commit()
+  return { ok: true, allocated: allocatedTotal, balance: E.walletBalance(d, mid), tx: walletPub(d, w) }
+})
+
+// بازگشت از درگاه بانک ملی — نتیجه پرداخت مستقیم به‌عنوان نتیجه سرویس اعمال می‌شود
+route('POST', '/api/wallet/gateway/verify', ({ body }) => {
+  const u = require()
+  const d = db()
+  const w = d.wallet.find(x => x.id === Number(body.tx_id))
+  if (!w) throw new HttpError(404, 'تراکنش کیف پول یافت نشد')
+  if (u.role === 'member' && w.member_id !== u.member_id) throw new HttpError(403, 'دسترسی مجاز نیست')
+  if (w.status !== 'pending') throw new HttpError(400, 'این تراکنش قبلاً نتیجه‌گیری شده است')
+  if (w.method !== 'gateway') throw new HttpError(400, 'این تراکنش از طریق درگاه آغاز نشده است')
+  if (body.result !== 'ok') {
+    w.status = body.result === 'cancel' ? 'rejected' : 'failed'
+    w.note += body.result === 'cancel' ? ' — انصراف کاربر از پرداخت' : ' — پرداخت ناموفق در بانک'
+    log(d, u, 'update', 'wallet', w.id, { no: w.no, result: body.result })
+    commit()
+    return { ok: false, status: w.status, message: w.status === 'rejected' ? 'پرداخت لغو شد' : 'پرداخت ناموفق بود' }
+  }
+  if (!body.ref) throw new HttpError(400, 'شماره مرجع بانکی برای تأیید الزامی است')
+  // در استقرار واقعی: اینجا Verify وب‌سرویس بانک ملی (مطابقت مبلغ و توکن) فراخوانی می‌شود
+  w.status = 'approved'
+  w.gateway_ref = body.ref
+  w.approved_by = 'gateway-melli'
+  w.approved_at = new Date().toISOString()
+  const cr = postWalletCharge(d, w, u)
+  let allocated = 0
+  if (w.commitment_id) {
+    // پرداخت مستقیم هزینه/تعهد از کارتابل: بلافاصله از کیف پول به تعهد تخصیص می‌یابد
+    const target = d.commitments.find(c => c.id === w.commitment_id)
+    if (target) {
+      allocated = allocateCreditToCommitment(d, cr, target.id, u)
+      if (allocated > 0) {
+        const today = todayIso()
+        const s = {
+          id: nextId(d, 'wallet'),
+          no: E.nextNumberLocal(d, 'wallet', today, { wallet: 'WLT' }),
+          wdate: today, member_id: w.member_id, type: 'settle', amount: allocated,
+          method: 'wallet', gateway: null, bank_id: null, tracking_no: '',
+          gateway_ref: body.ref, note: `تسویه تعهد مصوبه با شارژ ${w.no} — پرداخت آنلاین بانک ملی`,
+          purpose: null, commitment_id: target.id, status: 'approved',
+          approved_by: u.username, voucher_id: null, created_by: u.username,
+          created_at: new Date().toISOString(),
+        }
+        d.wallet.push(s)
+      }
+    }
+  }
+  log(d, u, 'approve', 'wallet', w.id, { no: w.no, amount: w.amount, ref: body.ref, allocated })
+  commit()
+  return {
+    ok: true, status: 'approved', ref: body.ref, amount: w.amount,
+    allocated, balance: E.walletBalance(d, w.member_id),
+    message: allocated > 0
+      ? `پرداخت موفق — مبلغ به تعهد مصوب تخصیص یافت (${allocated.toLocaleString('fa-IR')} ریال)`
+      : 'شارژ کیف پول با موفقیت انجام شد',
+  }
+})
+
 // vouchers
 route('GET', '/api/vouchers', ({ query }) => {
   require(['admin', 'finance', 'accountant', 'ceo', 'auditor'])

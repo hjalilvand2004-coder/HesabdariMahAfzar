@@ -422,10 +422,15 @@ export function memberStatement (db, memberId) {
     const sv = cr.note?.startsWith('جبران خدمات') ? db.services.find(s => s.no === (cr.note || '').split(' ')[2]) : null
     return { id: cr.id, amount: cr.amount, remaining: cr.remaining, expense_no: e?.no || '', expense_title: e?.title || '', date: e?.exp_date || (sv?.comp_date || cr.created_at?.slice(0, 10) || ''), note: cr.note }
   })
-  const serviceRows = db.services.filter(s => s.member_id === memberId).sort((a, b) => a.id - b.id).map(s => ({
+  const serviceRows = db.services.filter(s => s.member_id === memberId).sort((a, b) => b.id - a.id).map(s => ({
     id: s.id, no: s.no, sdate: s.sdate, stype: s.stype, title: s.title, qty: s.qty, unit: s.unit,
     unit_price: s.unit_price, amount: s.amount, calc_note: s.calc_note, status: s.status,
     comp_method: s.comp_method, comp_date: s.comp_date, comp_note: s.comp_note,
+  }))
+  const walletRows = db.wallet.filter(w => w.member_id === memberId).sort((a, b) => b.id - a.id).map(w => ({
+    id: w.id, member_id: w.member_id, no: w.no, wdate: w.wdate, type: w.type, amount: w.amount, method: w.method,
+    gateway: w.gateway, gateway_ref: w.gateway_ref, tracking_no: w.tracking_no,
+    status: w.status, note: w.note, commitment_id: w.commitment_id, bank_id: w.bank_id,
   }))
   const balances = { current: 0, loan: 0, capital: 0, debit_total: 0, credit_total: 0 }
   const taf = tafsilForMember(db, memberId)
@@ -449,10 +454,12 @@ export function memberStatement (db, memberId) {
   const servicesApproved = serviceRows.filter(s => s.status === 'compensated' && s.comp_method === 'cash').reduce((s, x) => s + x.amount, 0)
   const servicesCredit = serviceRows.filter(s => s.status === 'compensated' && s.comp_method === 'credit').reduce((s, x) => s + x.amount, 0)
   const servicesPending = serviceRows.filter(s => ['draft', 'pending', 'approved'].includes(s.status)).reduce((s, x) => s + x.amount, 0)
+  const walletBal = walletBalance(db, memberId)
   return {
     member: { id: m.id, code: m.code, full_name: m.full_name, kind: m.kind, phone: m.phone },
     share_now: memberShareBpAt(db, memberId, null),
     commitments: commRows, payments: payRows, credits: creditRows, services: serviceRows,
+    wallet: walletRows,
     balances,
     totals: {
       commitments: totalCommit, commitments_paid: totalPaidCommit,
@@ -462,9 +469,20 @@ export function memberStatement (db, memberId) {
       unallocated_credit: totalPaidCash + totalCredit - totalAlloc,
       services_cash: servicesApproved, services_credit: servicesCredit, services_pending: servicesPending,
       services_total: servicesApproved + servicesCredit + servicesPending,
+      wallet_balance: walletBal,
       net_balance: (totalPaidCash + totalCredit) - totalCommit,
     },
   }
+}
+
+// ---------- کیف پول اعضا ----------
+
+// موجودی کیف پول = شارژهای تأییدشده − استفاده‌ها (تسویه/برداشت)
+export function walletBalance (db, memberId) {
+  const txs = db.wallet.filter(w => w.member_id === memberId)
+  const charges = txs.filter(t => t.type === 'charge' && t.status === 'approved').reduce((s, t) => s + t.amount, 0)
+  const used = txs.filter(t => ['settle', 'spend'].includes(t.type)).reduce((s, t) => s + t.amount, 0)
+  return charges - used
 }
 
 // تایم‌لاین رویدادهای مالی یک عضو — برای پروفایل شخص
@@ -512,6 +530,13 @@ export function memberTimeline (db, memberId) {
       date: src?.pay_date || src?.created_at?.slice(0, 10) || '', ts: a.created_at, kind: 'allocate',
       title: `تهاتر ${a.amount.toLocaleString('fa-IR')} ریال با تعهد مصوبه ${f?.no || ''}`,
       amount: a.amount, status: 'approved',
+    })
+  }
+  for (const w of db.wallet.filter(x => x.member_id === memberId)) {
+    out.push({
+      date: w.wdate, ts: w.created_at, kind: 'wallet',
+      title: ({ charge: `کیف پول ${w.no} — شارژ${w.method === 'gateway' ? ' از درگاه بانک ملی' : ''}`, settle: `کیف پول ${w.no} — تسویه تعهدات`, spend: `کیف پول ${w.no} — برداشت` })[w.type] || `کیف پول ${w.no}`,
+      amount: w.amount, status: w.status,
     })
   }
   out.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.ts || '').localeCompare(a.ts || ''))
