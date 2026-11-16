@@ -106,7 +106,7 @@ export default function Wallet ({ user, settings }) {
           : 'مانده پیش‌پرداخت هر عضو نزد شرکت، اعلام شارژها و تراکنش‌های درگاه بانک ملی'} />
 
       {banner && (
-        <div className={`alert ${banner.kind === 'ok' ? '' : 'danger'} mb`} style={banner.kind === 'ok' ? { background: 'var(--success-soft)', color: '#047857' } : {}}>
+        <div className={`alert ${banner.kind === 'ok' ? '' : 'danger'} mb`} style={banner.kind === 'ok' ? { background: 'var(--success-soft)', color: 'var(--success-ink)', borderColor: 'rgba(5, 150, 105, .25)' } : {}}>
           <Icon name={banner.kind === 'ok' ? 'check' : 'alert'} size={18} />
           <div><b>{banner.title}</b>{banner.text}</div>
         </div>

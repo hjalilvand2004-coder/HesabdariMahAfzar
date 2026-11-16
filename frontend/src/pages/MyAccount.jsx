@@ -93,7 +93,7 @@ export default function MyAccount ({ user, settings }) {
 
       {gwBanner && (
         <div className={`alert mb ${gwBanner.kind === 'ok' ? '' : 'danger'}`}
-          style={gwBanner.kind === 'ok' ? { background: 'var(--success-soft)', color: '#047857' } : {}}>
+          style={gwBanner.kind === 'ok' ? { background: 'var(--success-soft)', color: 'var(--success-ink)', borderColor: 'rgba(5, 150, 105, .25)' } : {}}>
           <Icon name={gwBanner.kind === 'ok' ? 'check' : 'alert'} size={18} />
           <div><b>{gwBanner.title}</b>{gwBanner.text}</div>
         </div>

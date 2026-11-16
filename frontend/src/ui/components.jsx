@@ -49,6 +49,11 @@ const PATHS = {
   pie: 'M21 12A9 9 0 1 1 12 3v9h9Z',
   doc: 'M14 2H6v20h12V8l-4-6Zm0 0v6h6M9 13h6M9 17h6',
   scale: 'M12 3v18M5 8l7-3 7 3M5 8l-3 6a3.5 3.5 0 0 0 6 0L5 8Zm14 0 3 6a3.5 3.5 0 0 1-6 0l3-6Z',
+  sun: 'circle cx=12 cy=12 r=4.4 | M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6',
+  moon: 'M20.6 14.2A8.8 8.8 0 1 1 9.8 3.4a7 7 0 1 0 10.8 10.8Z',
+  checkCircle: 'circle cx=12 cy=12 r=9 | M8.5 12.3l2.4 2.4 4.8-5',
+  xCircle: 'circle cx=12 cy=12 r=9 | M9 9l6 6M15 9l-6 6',
+  info: 'circle cx=12 cy=12 r=9 | M12 11v5M12 7.8h.01',
 }
 
 export function Icon ({ name, size = 19, stroke = 1.7 }) {
@@ -56,7 +61,8 @@ export function Icon ({ name, size = 19, stroke = 1.7 }) {
   const parts = raw.split('|')
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}
+      aria-hidden="true">
       {parts.map((p, i) => {
         p = p.trim()
         if (p.startsWith('circle')) {
@@ -95,10 +101,10 @@ export function Modal ({ title, children, onClose, wide, foot }) {
   }, [onClose])
   return (
     <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className={`modal ${wide ? 'wide' : ''}`}>
+      <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true">
         <div className="modal-head">
           <h3>{title}</h3>
-          <button className="close" onClick={onClose}><Icon name="x" /></button>
+          <button className="close" onClick={onClose} aria-label="بستن"><Icon name="x" /></button>
         </div>
         <div className="modal-body">{children}</div>
         {foot && <div className="modal-foot">{foot}</div>}
@@ -181,46 +187,53 @@ export function JDate ({ value, onChange, from = 1390, to }) {
   )
 }
 
+/* ================= رنگ‌های نمودار (سازگار با تم) ================= */
+const C_INCOME = 'var(--chart-income, #059669)'
+const C_EXPENSE = 'var(--chart-expense, #e11d48)'
+const C_GRID = 'var(--chart-grid, #e2eae6)'
+const C_TEXT = 'var(--ink-3, #7e968d)'
+const C_PRIMARY = 'var(--primary, #0f766e)'
+
 /* ================= نمودار میله‌ای ================= */
-export function BarChart ({ data, height = 220, money = true, unit = 'toman', colors = ['#4f46e5', '#10b981'], onItemClick }) {
+export function BarChart ({ data, height = 220, money = true, unit = 'toman', colors = [C_PRIMARY, C_EXPENSE], onItemClick }) {
   if (!data.length) return <div className="empty">داده‌ای برای نمایش نیست</div>
   const max = Math.max(...data.flatMap(d => d.values))
   const W = 640, H = height, padB = 34, padT = 16
   const gw = (W - 20) / data.length
   const bw = Math.min(30, gw / (data[0].values.length + 1.2))
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ direction: 'ltr' }}>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ direction: 'ltr' }} role="img" aria-label="نمودار میله‌ای">
       <defs>
         {colors.map((c, i) => (
           <linearGradient key={i} id={`bg${i}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={c} stopOpacity="0.95" />
-            <stop offset="100%" stopColor={c} stopOpacity="0.45" />
+            <stop offset="0%" style={{ stopColor: c, stopOpacity: 0.95 }} />
+            <stop offset="100%" style={{ stopColor: c, stopOpacity: 0.4 }} />
           </linearGradient>
         ))}
       </defs>
       {[0.25, 0.5, 0.75, 1].map(f => (
         <line key={f} x1="10" x2={W - 10} y1={padT + (H - padB - padT) * (1 - f)} y2={padT + (H - padB - padT) * (1 - f)}
-          stroke="#e5eaf3" strokeDasharray="3 4" />
+          style={{ stroke: C_GRID }} strokeDasharray="3 4" />
       ))}
       {data.map((d, i) => {
         const x0 = 10 + i * gw
         const clickable = onItemClick && d.values.length === 1
         return (
-          <g key={d.label} className={clickable ? 'chart-click' : ''} onClick={clickable ? () => onItemClick(d) : undefined}
-            style={clickable ? { cursor: 'pointer' } : undefined}>
+          <g key={d.label} className={clickable ? 'chart-click' : ''} onClick={clickable ? () => onItemClick(d) : undefined}>
             {d.values.map((v, j) => {
               const h = max ? (v / max) * (H - padB - padT) : 0
               const x = x0 + gw / 2 - (bw * d.values.length) / 2 + j * bw + 2
               return (
                 <g key={j}>
-                  <rect x={x} y={H - padB - h} width={bw - 4} height={Math.max(h, 2)} rx="5"
+                  <rect x={x} y={H - padB - h} width={bw - 4} height={Math.max(h, 2)} rx="6"
                     fill={`url(#bg${j})`}>
                     <title>{`${d.series?.[j] || ''}: ${fmtMoney(v, unit)}`}</title>
                   </rect>
                 </g>
               )
             })}
-            <text x={x0 + gw / 2} y={H - 12} textAnchor="middle" className="chart-tip">{d.label}</text>
+            <text x={x0 + gw / 2} y={H - 12} textAnchor="middle" className="chart-tip"
+              style={{ fill: C_TEXT }}>{d.label}</text>
           </g>
         )
       })}
@@ -239,40 +252,42 @@ export function LineChart ({ data, height = 230, unit = 'toman', onItemClick }) 
   const pts = data.map((d, i) => d.values.map((v, j) => [padS + i * step, padT + ih - (v / max) * ih]))
   const line = (j) => pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[j][0]},${p[j][1]}`).join(' ')
   const area = (j) => `${line(j)} L${padS + (data.length - 1) * step},${padT + ih} L${padS},${padT + ih} Z`
+  const seriesColors = [C_INCOME, C_EXPENSE]
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ direction: 'ltr' }}>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ direction: 'ltr' }} role="img" aria-label="نمودار روند">
       <defs>
         <linearGradient id="lg0" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#4f46e5" stopOpacity="0" />
+          <stop offset="0%" style={{ stopColor: C_INCOME, stopOpacity: 0.32 }} />
+          <stop offset="100%" style={{ stopColor: C_INCOME, stopOpacity: 0 }} />
         </linearGradient>
         <linearGradient id="lg1" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#10b981" stopOpacity="0.30" />
-          <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+          <stop offset="0%" style={{ stopColor: C_EXPENSE, stopOpacity: 0.28 }} />
+          <stop offset="100%" style={{ stopColor: C_EXPENSE, stopOpacity: 0 }} />
         </linearGradient>
       </defs>
       {[0.25, 0.5, 0.75, 1].map(f => (
         <line key={f} x1={padS} x2={W - padS} y1={padT + ih * (1 - f)} y2={padT + ih * (1 - f)}
-          stroke="#e5eaf3" strokeDasharray="3 4" />
+          style={{ stroke: C_GRID }} strokeDasharray="3 4" />
       ))}
       <path d={area(0)} fill="url(#lg0)" />
       <path d={area(1)} fill="url(#lg1)" />
-      <path d={line(0)} fill="none" stroke="#4f46e5" strokeWidth="2.6" strokeLinecap="round" />
-      <path d={line(1)} fill="none" stroke="#10b981" strokeWidth="2.6" strokeLinecap="round" />
+      <path d={line(0)} fill="none" style={{ stroke: C_INCOME }} strokeWidth="2.6" strokeLinecap="round" />
+      <path d={line(1)} fill="none" style={{ stroke: C_EXPENSE }} strokeWidth="2.6" strokeLinecap="round" />
       {pts.map((p, i) => (
-        <g key={i} className={onItemClick ? 'chart-click' : ''} onClick={onItemClick ? () => onItemClick(data[i]) : undefined}
-          style={onItemClick ? { cursor: 'pointer' } : undefined}>
-          {p.map((pt, j) => <circle key={j} cx={pt[0]} cy={pt[1]} r="3.4" fill="#fff" stroke={['#4f46e5', '#10b981'][j]} strokeWidth="2">
+        <g key={i} className={onItemClick ? 'chart-click' : ''} onClick={onItemClick ? () => onItemClick(data[i]) : undefined}>
+          {p.map((pt, j) => <circle key={j} cx={pt[0]} cy={pt[1]} r="3.4" fill="var(--card, #fff)"
+            style={{ stroke: seriesColors[j] }} strokeWidth="2">
             <title>{`${data[i].series?.[j] || ''}: ${fmtMoney(data[i].values[j], unit)}`}</title>
           </circle>)}
-          <text x={p[0][0]} y={H - 12} textAnchor="middle" className="chart-tip">{data[i].label}</text>
+          <text x={p[0][0]} y={H - 12} textAnchor="middle" className="chart-tip"
+            style={{ fill: C_TEXT }}>{data[i].label}</text>
         </g>
       ))}
     </svg>
   )
 }
 
-/* ================= نمودار میله‌ای افقی (جایگزین دایره‌ای — با دریل‌داون) ================= */
+/* ================= نمودار میله‌ای افقی (رتبه‌بندی — با دریل‌داون) ================= */
 export function HBar ({ items, unit = 'toman', onItemClick, maxHeight = 360, compact = false, emptyText }) {
   const usable = (items || []).filter(i => i.value > 0 || i.showZero)
   if (!usable.length) return <Empty text={emptyText || 'داده‌ای برای نمایش نیست'} />

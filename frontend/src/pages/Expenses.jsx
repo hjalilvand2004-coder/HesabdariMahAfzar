@@ -428,7 +428,7 @@ function ExpenseDetail ({ detail, setDetail, canEdit, unit, banks, onSettle, onU
 
 function InfoRow ({ label, v }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f0f3f9', padding: '7px 0', gap: 10 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--line)', padding: '7px 0', gap: 10 }}>
       <span className="small muted">{label}</span>
       <span style={{ fontWeight: 600, fontSize: 13.5 }}>{v}</span>
     </div>

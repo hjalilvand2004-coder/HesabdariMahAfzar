@@ -139,7 +139,7 @@ export default function Profiles ({ settings }) {
           <div className="card-head"><h3>روند پرداخت‌های نقدی این شخص (به تفکیک ماه)</h3></div>
           <div className="pad">
             {payChart.length
-              ? <BarChart data={payChart} unit={unit} height={200} colors={['#4f46e5']} />
+              ? <BarChart data={payChart} unit={unit} height={200} colors={['var(--primary, #0f766e)']} />
               : <Empty text="پرداخت نقدی تأییدشده‌ای ثبت نشده است" />}
           </div>
         </div>

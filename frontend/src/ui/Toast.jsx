@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react'
+import { Icon } from './components.jsx'
 
 const ToastCtx = createContext(null)
 export const useToast = () => useContext(ToastCtx)
@@ -15,10 +16,10 @@ export function ToastProvider ({ children }) {
   return (
     <ToastCtx.Provider value={toast}>
       {children}
-      <div className="toast-host">
+      <div className="toast-host" role="status" aria-live="polite">
         {toasts.map(t => (
           <div key={t.id} className={`toast ${t.kind}`}>
-            <span>{t.kind === 'err' ? '⛔' : '✅'}</span>
+            <Icon name={t.kind === 'err' ? 'xCircle' : 'checkCircle'} size={18} />
             <span>{t.text}</span>
           </div>
         ))}

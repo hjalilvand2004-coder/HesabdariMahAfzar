@@ -4,7 +4,7 @@ import { call } from '../api/index.js'
 import { Modal, Icon, Badge, Empty, useToast } from '../ui/components.jsx'
 
 const TYPE_LABELS = { asset: 'دارایی', liability: 'بدهی', equity: 'حقوق مالکانه', income: 'درآمد', expense: 'هزینه' }
-const TYPE_COLORS = { asset: '#0284c7', liability: '#ef4444', equity: '#7c3aed', income: '#10b981', expense: '#f59e0b' }
+const TYPE_COLORS = { asset: '#0891b2', liability: '#ef4444', equity: '#7c3aed', income: '#10b981', expense: '#f59e0b' }
 
 export default function Accounts ({ user }) {
   const toast = useToast()
@@ -72,7 +72,7 @@ export default function Accounts ({ user }) {
           <div className="pad" style={{ paddingTop: 8 }}>
             {cols(g).map(c => (
               <div key={c.code} style={{ marginBottom: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 4px', borderBottom: '1px dashed #eef1f7' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 4px', borderBottom: '1px dashed var(--line)' }}>
                   <b className="num" style={{ minWidth: 52 }}>{c.code}</b>
                   <span style={{ fontWeight: 600 }}>{c.name}</span>
                   {!postable(c) && <Badge k="b-muted" text="سرفصل" />}
@@ -85,7 +85,7 @@ export default function Accounts ({ user }) {
                 </div>
                 {moins(c).map(m => (
                   <div key={m.code} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 26px' }}>
-                    <b className="num" style={{ minWidth: 52, color: '#5a6478' }}>{m.code}</b>
+                    <b className="num" style={{ minWidth: 52, color: 'var(--ink-2)' }}>{m.code}</b>
                     <span className="muted">{m.name}</span>
                     {!m.is_active && <Badge k="b-danger" text="غیرفعال" />}
                     {canManage && (

@@ -121,7 +121,7 @@ export default function App () {
   }, [])
 
   if (booting) {
-    return <div className="boot-screen"><div className="boot-logo">◈</div><div>در حال بارگذاری…</div></div>
+    return <div className="boot-screen"><div className="boot-logo">◈</div><div>سامانه مالیار در حال بارگذاری…</div></div>
   }
 
   if (!user) {

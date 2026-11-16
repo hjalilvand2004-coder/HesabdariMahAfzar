@@ -3,8 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#071d1a" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230f766e'/%3E%3Ctext x='32' y='43' font-size='34' text-anchor='middle' fill='white' font-family='sans-serif'%3E%E2%97%88%3C/text%3E%3C/svg%3E" />
     <title>سامانه مالیار — مدیریت مالی و حسابداری شرکت</title>
-    <meta name="description" content="مدیریت هزینه، تأمین مالی اعضا و حسابداری جامع شرکت" />
+    <meta name="description" content="مدیریت هزینه، تأمین مالی اعضا و حسابداری جامع شرکت — نسخه ۱.۳ با رابط کاربری بازطراحی‌شده و حالت شب" />
+    <script>
+      // جلوگیری از پرش تم: تم ذخیره‌شده یا ترجیح سیستم، پیش از رندر اعمال می‌شود
+      try {
+        var t = localStorage.getItem('maliyar_theme')
+        if (!t) t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        document.documentElement.setAttribute('data-theme', t)
+      } catch (e) { document.documentElement.setAttribute('data-theme', 'light') }
+    </script>
   </head>
   <body>
     <div id="root"></div>

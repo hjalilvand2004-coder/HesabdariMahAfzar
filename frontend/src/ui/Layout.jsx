@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useApp } from '../App.jsx'
 import { Icon } from './components.jsx'
 import { HelpButton } from './Help.jsx'
@@ -36,9 +36,22 @@ const NAV = [
   ] },
 ]
 
+// تم روشن/شب — ذخیره در localStorage و اعمال روی data-theme
+export function useTheme () {
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('maliyar_theme') || 'light' } catch { return 'light' }
+  })
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    try { localStorage.setItem('maliyar_theme', theme) } catch { /* noop */ }
+  }, [theme])
+  return [theme, () => setTheme(t => (t === 'dark' ? 'light' : 'dark'))]
+}
+
 export default function Layout ({ route, title, children }) {
   const { user, logout, settings, navigate } = useApp()
   const [open, setOpen] = useState(false)
+  const [theme, toggleTheme] = useTheme()
   const go = (path) => { navigate(path); setOpen(false) }
   const unitLabel = settings?.currency_display === 'rial' ? 'ریال' : 'تومان'
   const helpTopic = route.replace(/^\//, '')
@@ -58,7 +71,7 @@ export default function Layout ({ route, title, children }) {
             (!i.roles || i.roles.includes(user.role)) && permOf(settings, user.role, i.path.slice(1)))
           if (!items.length) return null
           return (
-            <div key={g.group}>
+            <div key={g.group} style={{ position: 'relative' }}>
               <div className="nav-group-label">{g.group}</div>
               {items.map(i => (
                 <div key={i.path} className={`nav-item ${route === i.path ? 'active' : ''}`} onClick={() => go(i.path)}>
@@ -70,17 +83,21 @@ export default function Layout ({ route, title, children }) {
           )
         })}
         <div className="sidebar-foot">
-          {settings?.company_name || ''} — نسخه ۱.۱<br />
+          {settings?.company_name || ''} — نسخه ۱.۳<br />
           واحد نمایش: {unitLabel}
         </div>
       </aside>
       <div className="main">
         <header className="topbar">
-          <button className="hamburger" onClick={() => setOpen(o => !o)}>☰</button>
+          <button className="hamburger" onClick={() => setOpen(o => !o)} aria-label="منو">☰</button>
           <h1>{title}</h1>
           <HelpButton topic={helpTopic} label="" />
           <div className="spacer" />
           <GuideButton />
+          <button className="icon-btn" onClick={toggleTheme}
+            title={theme === 'dark' ? 'حالت روشن' : 'حالت شب'} aria-label="تغییر تم">
+            <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={17} />
+          </button>
           <span className={`period-badge ${settings?.period_closed ? 'closed' : ''}`}>
             سال مالی {settings?.fiscal_label?.toLocaleString('fa-IR')}
             {settings?.period_closed ? ' (بسته)' : ''}

@@ -164,8 +164,8 @@ export default function Dashboard () {
             <h3>روند درآمد و هزینه (ماه‌های اخیر)</h3>
             <div className="spacer" />
             <div className="legend-row" style={{ marginTop: 0 }}>
-              <span className="legend-item"><i style={{ background: '#4f46e5' }} />درآمد</span>
-              <span className="legend-item"><i style={{ background: '#10b981' }} />هزینه</span>
+              <span className="legend-item"><i style={{ background: 'var(--chart-income)' }} />درآمد</span>
+              <span className="legend-item"><i style={{ background: 'var(--chart-expense)' }} />هزینه</span>
             </div>
           </div>
           <div className="pad">
@@ -197,7 +197,7 @@ export default function Dashboard () {
                   title="مشاهده پروفایل کامل مالی">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
                     <b style={{ fontSize: 13.5 }}>
-                      <span style={{ color: ['#4f46e5', '#0ea5a4', '#f59e0b', '#ef4444', '#7c3aed', '#0284c7'][i % 6], marginRight: 6 }}>●</span>
+                      <span style={{ color: ['var(--primary)', '#d97706', '#059669', '#e11d48', '#7c3aed', '#0891b2'][i % 6], marginRight: 6 }}>●</span>
                       {m.name}
                       <span className="muted small" style={{ marginRight: 8 }}>({(m.share_bp / 100).toLocaleString('fa-IR')}٪ سهم)</span>
                     </b>
