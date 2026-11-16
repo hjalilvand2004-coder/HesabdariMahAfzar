@@ -4,8 +4,63 @@ import * as E from './engine.js'
 import { seedDemo } from './seed.js'
 import { hashPassword, verifyPassword, randomHex } from '../../lib/sha256.js'
 import { todayIso, currentJYear, isoToJalali } from '../../lib/jalali.js'
+import { DEFAULT_ROLE_PERMS } from '../../lib/format.js'
 
 let _db = null
+
+// ---------- ارتای پایگاه‌داده نسخه‌های قدیمی ----------
+// پایگاه‌داده نسخه‌های ۱.۰ و ۱.۱ جدول‌های services، wallet و... را ندارد؛
+// بدون ارتا، هر فراخوانی با خطا متوقف می‌شود. داده نمونه قدیمی «پارس‌داده»
+// نیز مطابق سیاست نسخه سرور با سناریوی مه‌آی بازسازی می‌شود.
+const REQUIRED_TABLES = ['users', 'members', 'shares', 'projects', 'banks', 'tafsils',
+  'accounts', 'expenses', 'attachments', 'funding', 'commitments', 'payments',
+  'allocations', 'credits', 'services', 'wallet', 'vouchers', 'audit']
+
+const SETTINGS_DEFAULTS = {
+  company_name_en: '', company_reg_no: '', company_economic_code: '',
+  company_activity: '', company_address: '', company_phone: '',
+  company_email: '', company_website: '', company_logo: '',
+  member_sees_all_expenses: false, auto_offset: true,
+  period_closed: false, base_share_date: '2025-03-21',
+}
+
+function migrateDB (db) {
+  const reseed = () => {
+    const nd = emptyDB()
+    seedDemo(nd)
+    saveDB(nd)
+    return nd
+  }
+  // داده خراب یا ناتمام → داده نمونه جدید
+  if (!db || typeof db !== 'object' || !db.settings || typeof db.settings !== 'object') return reseed()
+  // سناریوی نمونه قدیمی «پارس‌داده» (نسخه‌های ۱.۰ تا ۱.۲) → بازسازی با سناریوی مه‌آی
+  if (String(db.settings.company_name || '').includes('پارس‌داده')) return reseed()
+
+  let touched = false
+  for (const t of REQUIRED_TABLES) {
+    if (!Array.isArray(db[t])) { db[t] = []; touched = true }
+  }
+  if (!db.seq || typeof db.seq !== 'object') { db.seq = {}; touched = true }
+  if (!db.counters || typeof db.counters !== 'object') { db.counters = {}; touched = true }
+  if (!db.meta || typeof db.meta !== 'object') { db.meta = { version: 1, createdAt: todayIso() }; touched = true }
+  if (db.meta.scenario !== 2) { db.meta.scenario = 2; touched = true }
+  // فیلدهای پروفایل شرکت و ماتریس دسترسی
+  for (const [k, v] of Object.entries(SETTINGS_DEFAULTS)) {
+    if (db.settings[k] === undefined) { db.settings[k] = v; touched = true }
+  }
+  if (!db.settings.role_perms || typeof db.settings.role_perms !== 'object') {
+    db.settings.role_perms = JSON.parse(JSON.stringify(DEFAULT_ROLE_PERMS))
+    touched = true
+  } else if (Array.isArray(db.settings.role_perms.member)) {
+    // پرتال عضو بدون «وضعیت حساب من» و «کیف پول من» بی‌معناست — در ماتریس قدیمی تضمین می‌شود
+    const mp = db.settings.role_perms.member
+    for (const key of ['my-account', 'wallet']) {
+      if (!mp.includes(key)) { mp.push(key); touched = true }
+    }
+  }
+  if (touched) saveDB(db)
+  return db
+}
 
 function db () {
   if (_db === null) {
@@ -14,6 +69,8 @@ function db () {
       _db = emptyDB()
       seedDemo(_db)
       saveDB(_db)
+    } else {
+      _db = migrateDB(_db)
     }
   }
   return _db
@@ -1539,6 +1596,7 @@ export function resetDB () {
 export function importDB (json) {
   _db = typeof json === 'string' ? JSON.parse(json) : json
   if (!_db.settings) throw new HttpError(400, 'فایل پشتیبان معتبر نیست')
+  _db = migrateDB(_db)
   saveDB(_db)
 }
 export function exportDB () {

@@ -192,7 +192,7 @@ const C_INCOME = 'var(--chart-income, #059669)'
 const C_EXPENSE = 'var(--chart-expense, #e11d48)'
 const C_GRID = 'var(--chart-grid, #e2eae6)'
 const C_TEXT = 'var(--ink-3, #7e968d)'
-const C_PRIMARY = 'var(--primary, #0f766e)'
+const C_PRIMARY = 'var(--primary, #1d4ed8)'
 
 /* ================= نمودار میله‌ای ================= */
 export function BarChart ({ data, height = 220, money = true, unit = 'toman', colors = [C_PRIMARY, C_EXPENSE], onItemClick }) {
@@ -330,6 +330,26 @@ export function Progress ({ pct, green }) {
 
 export function Empty ({ icon = '📁', text = 'موردی یافت نشد' }) {
   return <div className="empty"><div className="empty-icon">{icon}</div><div>{text}</div></div>
+}
+
+// نمایش خطای دریافت داده به‌جای توقف بی‌پایان روی «در حال دریافت…»
+export function LoadError ({ msg, onRetry }) {
+  return (
+    <div className="page"><div className="card pad center" style={{ maxWidth: 560, margin: '48px auto' }}>
+      <div style={{ fontSize: 36, marginBottom: 10 }}><Icon name="alert" size={34} /></div>
+      <b>دریافت اطلاعات ناموفق بود</b>
+      <div className="muted small" style={{ marginTop: 8, lineHeight: 1.9 }}>
+        {msg || 'خطا در ارتباط با سرور — اتصال خود را بررسی کنید و دوباره تلاش کنید.'}
+      </div>
+      {onRetry && (
+        <div style={{ marginTop: 16 }}>
+          <button className="btn btn-primary btn-sm" onClick={onRetry}>
+            <Icon name="refresh" size={14} /> تلاش دوباره
+          </button>
+        </div>
+      )}
+    </div></div>
+  )
 }
 
 export function JDateText ({ iso, withMonth }) {

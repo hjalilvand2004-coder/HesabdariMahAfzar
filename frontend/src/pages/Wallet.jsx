@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useApp } from '../App.jsx'
 import { call } from '../api/index.js'
-import { Modal, Icon, Badge, JDate, JDateText, Empty, MoneyInput, Money, useToast } from '../ui/components.jsx'
+import { Modal, Icon, Badge, JDate, JDateText, Empty, MoneyInput, Money, useToast, LoadError } from '../ui/components.jsx'
 import { PageHeader } from '../ui/Help.jsx'
 import { fmtMoney, walletTypeLabels, walletStatusLabels, walletMethodLabels } from '../lib/format.js'
 
@@ -38,11 +38,15 @@ export default function Wallet ({ user, settings }) {
   const unit = settings?.currency_display || 'toman'
   const isMember = user.role === 'member'
   const [data, setData] = useState(null)
+  const [err, setErr] = useState('')
   const [banks, setBanks] = useState([])
   const [charge, setCharge] = useState(null)
   const [busy, setBusy] = useState(false)
 
-  const load = () => call('GET', '/api/wallet').then(setData)
+  const load = () => {
+    setErr('')
+    call('GET', '/api/wallet').then(setData).catch(ex => setErr(ex.message || 'خطا در دریافت کیف پول'))
+  }
   useEffect(() => { load(); call('GET', '/api/banks').then(setBanks).catch(() => {}) }, [])
   const banner = useGatewayResult(load)
 
@@ -92,6 +96,7 @@ export default function Wallet ({ user, settings }) {
     } catch (ex) { toast.error(ex.message) }
   }
 
+  if (err) return <LoadError msg={err} onRetry={load} />
   if (!data) return <div className="page"><div className="card pad center muted">در حال دریافت کیف پول…</div></div>
 
   const charges = data.txs.filter(t => t.type === 'charge' && t.status === 'approved').reduce((s, t) => s + t.amount, 0)

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useApp } from '../App.jsx'
 import { call } from '../api/index.js'
-import { Badge, Icon, JDateText, Money, BarChart, Empty, Progress } from '../ui/components.jsx'
+import { Badge, Icon, JDateText, Money, BarChart, Empty, Progress, LoadError } from '../ui/components.jsx'
 import { PageHeader } from '../ui/Help.jsx'
 import { fmtMoney, fmtBp, roleLabels, stypeLabels, serviceStatusLabels, faDigit } from '../lib/format.js'
 import { monthName, isoToJalali } from '../lib/jalali.js'
@@ -15,14 +15,17 @@ export default function Profiles ({ settings }) {
   const unit = settings?.currency_display || 'toman'
   const { user } = useApp()
   const [list, setList] = useState(null)
+  const [err, setErr] = useState('')
   const [selId, setSelId] = useState(idFromHash())
   const [statement, setStatement] = useState(null)
   const [timeline, setTimeline] = useState(null)
   const [tab, setTab] = useState('summary')
 
-  useEffect(() => {
-    call('GET', '/api/profiles').then(setList)
-  }, [])
+  const loadList = () => {
+    setErr('')
+    call('GET', '/api/profiles').then(setList).catch(ex => setErr(ex.message || 'خطا در دریافت پروفایل‌ها'))
+  }
+  useEffect(() => { loadList() }, [])
   useEffect(() => {
     const onHash = () => setSelId(idFromHash())
     window.addEventListener('hashchange', onHash)
@@ -39,6 +42,7 @@ export default function Profiles ({ settings }) {
   const openProfile = (id) => { window.location.hash = `/profile/${id}` }
   const backToList = () => { window.location.hash = '/profiles' }
 
+  if (err) return <LoadError msg={err} onRetry={loadList} />
   if (!list) return <div className="page"><div className="card pad center muted">در حال دریافت پروفایل‌ها…</div></div>
 
   if (selId && !sel) {
@@ -139,7 +143,7 @@ export default function Profiles ({ settings }) {
           <div className="card-head"><h3>روند پرداخت‌های نقدی این شخص (به تفکیک ماه)</h3></div>
           <div className="pad">
             {payChart.length
-              ? <BarChart data={payChart} unit={unit} height={200} colors={['var(--primary, #0f766e)']} />
+              ? <BarChart data={payChart} unit={unit} height={200} colors={['var(--primary, #1d4ed8)']} />
               : <Empty text="پرداخت نقدی تأییدشده‌ای ثبت نشده است" />}
           </div>
         </div>

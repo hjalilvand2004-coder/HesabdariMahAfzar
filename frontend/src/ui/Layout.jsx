@@ -87,7 +87,7 @@ export default function Layout ({ route, title, children }) {
           )
         })}
         <div className="sidebar-foot">
-          {settings?.company_name || ''} — نسخه ۱.۴<br />
+          {settings?.company_name || ''} — نسخه ۱.۵<br />
           واحد نمایش: {unitLabel}
         </div>
       </aside>

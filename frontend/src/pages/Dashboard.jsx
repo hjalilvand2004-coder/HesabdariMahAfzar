@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useApp, navigate } from '../App.jsx'
 import { call } from '../api/index.js'
-import { Icon, BarChart, LineChart, HBar, Progress, Badge, JDateText, Empty } from '../ui/components.jsx'
+import { Icon, BarChart, LineChart, HBar, Progress, Badge, JDateText, Empty, LoadError } from '../ui/components.jsx'
 import { DrillBox } from '../ui/Drill.jsx'
 import { fmtMoneyShort, fmtMoney, actionLabels, faNum, faDigit } from '../lib/format.js'
 import { monthName, formatJalali } from '../lib/jalali.js'
@@ -10,11 +10,15 @@ export default function Dashboard () {
   const { user, settings } = useApp()
   const unit = settings?.currency_display || 'toman'
   const [d, setD] = useState(null)
+  const [err, setErr] = useState('')
   const [drillMonth, setDrillMonth] = useState(null)
   const [guideOpen, setGuideOpen] = useState(() => !localStorage.getItem('maliyar_guide_seen'))
   const { refreshSettings } = useApp()
 
-  const load = () => call('GET', '/api/dashboard').then(setD).catch(() => {})
+  const load = () => {
+    setErr('')
+    call('GET', '/api/dashboard').then(setD).catch(ex => setErr(ex.message || 'خطا در دریافت داشبورد'))
+  }
   useEffect(() => { load() }, [])
 
   const dismissGuide = () => { localStorage.setItem('maliyar_guide_seen', '1'); setGuideOpen(false) }
@@ -87,6 +91,7 @@ export default function Dashboard () {
   ], [d?.fundings, unit])
 
   // early return فقط پس از همه هوک‌ها
+  if (err) return <LoadError msg={err} onRetry={load} />
   if (!d) return <div className="page"><div className="card pad center muted">در حال دریافت اطلاعات…</div></div>
 
   const profit = d.pnl_year.profit

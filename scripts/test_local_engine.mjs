@@ -314,5 +314,53 @@ const stF = call('GET', '/api/members/1/statement')
 check('statement شامل wallet_balance', typeof stF.totals.wallet_balance === 'number' && stF.wallet.length > 0)
 check('تایم‌لاین شامل رویداد کیف پول', call('GET', '/api/members/1/timeline').some(x => x.kind === 'wallet'))
 
+// ---------- ارتای پایگاه‌داده قدیمی (مهاجرت خودکار) ----------
+{
+  // سناریو ۱: پایگاه‌داده نسخه ۱.۰/۱.۱ — بدون wallet و services + دموی قدیمی «پارس‌داده»
+  const oldDB = {
+    meta: { version: 1, createdAt: '2025-01-01' },
+    seq: { users: 5 }, counters: {},
+    settings: { id: 1, company_name: 'شرکت پارس‌داده', currency_display: 'toman', fiscal_label: '1404' },
+    users: [], members: [], shares: [], projects: [], banks: [], tafsils: [],
+    accounts: [], expenses: [], attachments: [], funding: [], commitments: [],
+    payments: [], allocations: [], credits: [], vouchers: [], audit: [],
+  }
+  localStorage.setItem('maliyar_db_v1', JSON.stringify(oldDB))
+  const M1 = await import(`${BASE}/api/local/index.js?mig1`)
+  const lg = M1.localCall('POST', '/api/auth/login', { username: 'ali', password: '123456' })
+  check('مهاجرت: ورود پس از بازسازی دموی قدیمی', !!lg.token || !!lg.user)
+  const raw1 = JSON.parse(localStorage.getItem('maliyar_db_v1'))
+  check('مهاجرت: سناریوی پارس‌داده به مه‌آی بازسازی شد', raw1.settings.company_name.includes('مه‌آی'))
+  check('مهاجرت: جدول wallet ساخته شد', Array.isArray(raw1.wallet) && raw1.wallet.length > 0)
+  check('مهاجرت: جدول services ساخته شد', Array.isArray(raw1.services) && raw1.services.length > 0)
+  const w1 = M1.localCall('GET', '/api/wallet')
+  check('مهاجرت: کیف پول بعد از ارتا کار می‌کند', typeof w1.balance === 'number' && Array.isArray(w1.txs))
+  const s1 = M1.localCall('GET', '/api/members/1/statement')
+  check('مهاجرت: وضعیت حساب عضو بعد از ارتا کار می‌کند', Array.isArray(s1.wallet) && !!s1.totals)
+  M1.localCall('POST', '/api/auth/login', { username: 'admin', password: '123456' })
+  const d1 = M1.localCall('GET', '/api/dashboard')
+  check('مهاجرت: داشبورد بعد از ارتا کار می‌کند', !!d1 && Array.isArray(d1.alerts))
+  const mv1 = M1.localCall('GET', '/api/members')
+  check('مهاجرت: فهرست اعضا پر است', mv1.length === 4)
+}
+
+{
+  // سناریو ۲: پایگاه‌داده کارکرده واقعی فاقد جدول‌های جدید (مثلاً wallet خالی حذف‌شده) — فقط جدول‌ها ترمیم می‌شود
+  resetDB()
+  loginAs('ali')
+  call('POST', '/api/wallet/charge', { amount: 7_000_000, wdate: '2026-11-16', method: 'gateway' })
+  const raw = JSON.parse(localStorage.getItem('maliyar_db_v1'))
+  delete raw.wallet
+  raw.settings.company_logo = ''
+  localStorage.setItem('maliyar_db_v1', JSON.stringify(raw))
+  const M2 = await import(`${BASE}/api/local/index.js?mig2`)
+  M2.localCall('POST', '/api/auth/login', { username: 'admin', password: '123456' })
+  const raw2 = JSON.parse(localStorage.getItem('maliyar_db_v1'))
+  check('ترمیم: جدول wallet بازسازی شد بدون دست‌زدگی داده', Array.isArray(raw2.wallet))
+  check('ترمیم: داده کارکرده حفظ شد (تنظیمات و هزینه‌ها)', raw2.settings.company_name.includes('مه‌آی') && raw2.expenses.length > 0)
+  const w2 = M2.localCall('GET', '/api/wallet')
+  check('ترمیم: کیف پول قابل استفاده است', Array.isArray(w2.txs))
+}
+
 console.log(`\nنتیجه موتور پرتیبل: ${pass} موفق / ${fail} ناموفق`)
 process.exit(fail ? 1 : 0)

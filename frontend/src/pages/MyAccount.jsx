@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useApp, navigate } from '../App.jsx'
 import { call } from '../api/index.js'
-import { Badge, JDateText, Money, Empty, Progress, Icon, useToast } from '../ui/components.jsx'
+import { Badge, JDateText, Money, Empty, Progress, Icon, useToast, LoadError } from '../ui/components.jsx'
 import { HelpButton } from '../ui/Help.jsx'
 import { fmtMoney, fmtBp, stypeLabels, serviceStatusLabels } from '../lib/format.js'
 import { GuideButton } from '../ui/Guide.jsx'
@@ -10,12 +10,15 @@ export default function MyAccount ({ user, settings }) {
   const unit = settings?.currency_display || 'toman'
   const toast = useToast()
   const [st, setSt] = useState(null)
+  const [err, setErr] = useState('')
   const [wallet, setWallet] = useState(null)
   const [gwBanner, setGwBanner] = useState(null)
 
   const load = () => {
     if (user.member_id) {
+      setErr('')
       call('GET', `/api/members/${user.member_id}/statement`).then(setSt)
+        .catch(ex => setErr(ex.message || 'خطا در دریافت وضعیت حساب'))
       call('GET', '/api/wallet').then(setWallet).catch(() => {})
     }
   }
@@ -66,6 +69,7 @@ export default function MyAccount ({ user, settings }) {
   if (!user.member_id) {
     return <div className="page"><div className="card pad center muted">حساب کاربری شما به عضوی متصل نیست؛ با مدیر سامانه تماس بگیرید.</div></div>
   }
+  if (err) return <LoadError msg={err} onRetry={load} />
   if (!st) return <div className="page"><div className="card pad center muted">در حال دریافت وضعیت حساب…</div></div>
 
   const t = st.totals

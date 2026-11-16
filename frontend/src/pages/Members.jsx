@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useApp, navigate } from '../App.jsx'
 import { call } from '../api/index.js'
-import { Badge, Modal, Icon, JDate, JDateText, Empty, Money, useToast } from '../ui/components.jsx'
+import { Badge, Modal, Icon, JDate, JDateText, Empty, Money, useToast, LoadError } from '../ui/components.jsx'
 import { HelpButton } from '../ui/Help.jsx'
 import { fmtMoney, fmtBp, stypeLabels, serviceStatusLabels } from '../lib/format.js'
 import { formatJalali } from '../lib/jalali.js'
@@ -11,13 +11,17 @@ export default function Members ({ user }) {
   const { settings } = useApp()
   const unit = settings?.currency_display || 'toman'
   const [rows, setRows] = useState([])
+  const [err, setErr] = useState('')
   const [sel, setSel] = useState(null)       // عضو انتخابی برای جزئیات
   const [statement, setStatement] = useState(null)
   const [shares, setShares] = useState([])
   const [addForm, setAddForm] = useState(null)
   const canManage = ['admin', 'finance'].includes(user.role)
 
-  const load = () => call('GET', '/api/members').then(setRows)
+  const load = () => {
+    setErr('')
+    call('GET', '/api/members').then(setRows).catch(ex => setErr(ex.message || 'خطا در دریافت اعضا'))
+  }
   useEffect(() => { load() }, [])
   const open = async (m) => {
     setSel(m)
@@ -69,7 +73,9 @@ export default function Members ({ user }) {
         </div>
       </div>
 
-      <div className="card">
+      {err && <LoadError msg={err} onRetry={load} />}
+
+      {!err && <div className="card">
         <div className="table-wrap">
           <table className="tbl">
             <thead><tr><th>کد</th><th>نام</th><th>نوع</th><th>تماس</th><th>سهم فعلی</th><th>وضعیت</th><th></th></tr></thead>
@@ -92,7 +98,7 @@ export default function Members ({ user }) {
           </table>
           {!rows.length && <Empty text="عضوی ثبت نشده است" />}
         </div>
-      </div>
+      </div>}
 
       {/* پرونده عضو */}
       {sel && statement && (
