@@ -1,0 +1,101 @@
+import React, { useState } from 'react'
+import { useToast } from '../ui/Toast.jsx'
+import { Icon } from '../ui/components.jsx'
+
+const DEMO_USERS = [
+  { u: 'admin', n: 'مدیر سامانه' }, { u: 'finance', n: 'مدیر مالی' },
+  { u: 'acc', n: 'حسابداری' }, { u: 'ceo', n: 'مدیرعامل' },
+  { u: 'ali', n: 'عضو (علی)' }, { u: 'audit', n: 'حسابرس' },
+]
+
+export default function Login ({ onLogin }) {
+  const toast = useToast()
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [pin, setPin] = useState('')
+  const [needPin, setNeedPin] = useState(false)
+  const [showPw, setShowPw] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [shake, setShake] = useState(0)
+
+  const submit = async (e) => {
+    e.preventDefault()
+    setErr(''); setBusy(true)
+    try {
+      const res = await onLogin(username.trim(), password, pin || undefined)
+      toast(`خوش آمدید ${res.user.full_name}!`)
+    } catch (ex) {
+      if (ex.message === 'PIN_REQUIRED' || ex.status === 401 && ex.message?.includes?.('PIN_REQUIRED')) {
+        setNeedPin(true)
+        setErr('برای این حساب، رمز دومرحله‌ای (PIN) لازم است')
+      } else {
+        setErr(ex.message || 'ورود ناموفق بود')
+        setShake(s => s + 1)
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="login-wrap">
+      <div className="login-blob b1" />
+      <div className="login-blob b2" />
+      <div className="login-blob b3" />
+      <form className="login-card" onSubmit={submit} key={shake}>
+        <div className="login-brand">
+          <div className="login-logo">◈</div>
+          <div>
+            <div className="login-title">سامانه مالیار</div>
+            <div className="login-sub">مدیریت هزینه، تأمین مالی اعضا و حسابداری جامع شرکت</div>
+          </div>
+        </div>
+
+        <div className="field">
+          <label>نام کاربری</label>
+          <div className="input-icon-wrap">
+            <span className="input-icon"><Icon name="members" size={17} /></span>
+            <input className={`input ${err ? 'input-err' : ''}`} value={username}
+              onChange={(e) => setUsername(e.target.value)} placeholder="مثلاً finance" autoFocus />
+          </div>
+        </div>
+        <div className="field">
+          <label>رمز عبور</label>
+          <div className="input-icon-wrap">
+            <span className="input-icon" style={{ cursor: 'pointer' }}
+              onClick={() => setShowPw(s => !s)} title="نمایش/پنهان">
+              <Icon name={showPw ? 'x' : 'lock'} size={17} />
+            </span>
+            <input className={`input ${err ? 'input-err' : ''}`} type={showPw ? 'text' : 'password'}
+              value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+          </div>
+        </div>
+        {needPin && (
+          <div className="field">
+            <label>رمز دومرحله‌ای (PIN)</label>
+            <input className="input num" inputMode="numeric" value={pin} maxLength={8}
+              onChange={(e) => setPin(e.target.value.replace(/[^\d]/g, ''))} placeholder="● ● ● ●" />
+          </div>
+        )}
+
+        <button className="btn btn-primary btn-block" disabled={busy || !username || !password}>
+          {busy ? 'در حال بررسی…' : 'ورود به سامانه'}
+        </button>
+        <div className="form-err">{err}</div>
+
+        <div className="login-hint">
+          <b>کاربران نمونه (رمز همه: <span className="num">123456</span>)</b><br />
+          {DEMO_USERS.map(d => (
+            <span key={d.u} className="chip" onClick={() => { setUsername(d.u); setPassword('123456'); setNeedPin(false); setErr('') }}>
+              {d.n}
+            </span>
+          ))}
+          <div style={{ marginTop: 8, fontSize: 12 }}>
+            پس از ورود، می‌توانید از «تنظیمات ← پروفایل» رمز دومرحله‌ای فعال کنید.
+          </div>
+        </div>
+      </form>
+    </div>
+  )
+}

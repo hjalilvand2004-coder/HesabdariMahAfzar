@@ -1,0 +1,15 @@
+# وابستگی‌ها و محیط‌ها
+frontend/node_modules/
+venv/
+.venv/
+
+# پایگاه‌داده و داده‌های محلی (در اولین اجرا ساخته می‌شوند)
+backend/samane.db
+backend/uploads/
+*.db
+*.sqlite3
+
+# کش‌ها و فایل‌های سیستم
+__pycache__/
+*.pyc
+.DS_Store
