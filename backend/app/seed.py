@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """داده اولیه — سناریوی واقعی شرکت مه‌آی (MahAI): هاست، دامنه‌ها، ثبت شرکت، مهر، SSL و...
+تم داده آزمایشی: هزینه‌های راه‌اندازی شرکت — هاست، ثبت شرکت، دامنه، SSL و لوازم ضروری (مهر و…)
 همه عملیات از طریق سرویس‌های واقعی ثبت می‌شوند تا اسناد دقیقاً هم‌خوان باشند.
 مبالغ این فایل به تومان نوشته شده و در ریال ذخیره می‌شود (× ۱۰).
 """
@@ -18,8 +19,9 @@ from .services.financing import calc_split, create_commitments
 from .jalali import jalali_to_iso, fiscal_year_range
 
 # نسخه سناریوی داده اولیه — با تغییر نسخه، پایگاه‌داده دموی قدیمی بازسازی می‌شود
-SEED_SCENARIO_VERSION = 2
+SEED_SCENARIO_VERSION = 3
 OLD_SCENARIO_MARKER = "پارس‌داده"  # داده نمونه نسخه‌های ۱.۰ تا ۱.۲ سرور
+OLD_SCENARIO_INVOICE = "LOGO-1405"  # نشانگر داده نمونه نسخه‌های ۱.۴ و ۱.۵ (طراحی لوگو، پنل پیامک، سرور)
 
 MEMBERS = [
     {"code": "M-1001", "full_name": "علی محمدی", "kind": "person",
@@ -221,7 +223,7 @@ def seed(db: Session):
     bank_mellat = db.execute(select(models.BankAccount).where(
         models.BankAccount.kind == "bank")).scalar_one()
 
-    # ---- هزینه‌های واقعی شرکت مه‌آی (همه به تومان × ۱۰ = ریال)
+    # ---- هزینه‌های واقعی شرکت مه‌آی — تم: هزینه‌های راه‌اندازی (همه به تومان × ۱۰ = ریال)
     def add_expense(**kw):
         cnt = kw.pop("_idx", 0)
         defaults = dict(appr_status="draft", payer_type="company", paid_via="bank",
@@ -286,30 +288,30 @@ def seed(db: Session):
                 party_name="ارائه‌دهنده گواهی SSL", category_code="51102",
                 project_id=1, pay_status="paid", appr_status="approved",
                 approved_by="ceo", invoice_no="SSL-1405", _idx=idx)
-    # و...) سایر هزینه‌های راه‌اندازی — طراحی لوگو و هویت بصری
+    # ۹) خرید لوازم ضروری شرکت — لوازم التحریر و ملزومات اداری
     idx += 1
     add_expense(exp_date=jalali_to_iso(1405, 5, 15),
-                title="طراحی لوگو و هویت بصری برند MahAI",
-                description="طراحی لوگو، بنر و کیت هویت بصری پلتفرم‌ها",
-                base_amount=20_000_000, total_amount=20_000_000,
-                party_name="استودیو طراحی گرافیک", category_code="5106",
-                project_id=4, pay_status="paid", appr_status="approved",
-                approved_by="ceo", invoice_no="LOGO-1405", _idx=idx)
-    # یک هزینه در انتظار تأیید و یک پیش‌نویس برای نمایش گردش کار
+                title="خرید لوازم التحریر و ملزومات اداری ضروری",
+                description="خرید لوازم التحریر، کاغذ، جوهر پرینتر و ملزومات ضروری دفتر برای شروع فعالیت شرکت",
+                base_amount=30_000_000, total_amount=30_000_000,
+                party_name="فروشگاه لوازم اداری نگین", category_code="51032",
+                project_id=5, pay_status="paid", appr_status="approved",
+                approved_by="ceo", invoice_no="SUP-1405", _idx=idx)
+    # ۱۰) خرید لوازم بایگانی اسناد ثبتی — در انتظار تأیید (نمایش گردش کار)
     idx += 1
     add_expense(exp_date=jalali_to_iso(1405, 8, 20),
-                title="خرید پنل پیامک و سرویس OTP پلتفرم‌ها",
-                description="پنل ارسال پیامک تأییدیه و بازیابی رمز — فاکتور دریافت‌شده، در انتظار تأیید",
-                base_amount=4_000_000, total_amount=4_000_000,
-                party_name="سامانه پیامک انبوه", category_code="51071",
-                project_id=5, appr_status="pending", invoice_no="SMS-1405", _idx=idx)
+                title="خرید لوازم بایگانی و پوشه اسناد ثبتی شرکت",
+                description="کلاسور، پوشه و لوازم بایگانی اسناد ثبتی و مالی — فاکتور دریافت‌شده، در انتظار تأیید",
+                base_amount=15_000_000, total_amount=15_000_000,
+                party_name="مرکز تخصصی لوازم بایگانی", category_code="51032",
+                project_id=5, appr_status="pending", invoice_no="ARC-1405", _idx=idx)
     idx += 1
     add_expense(exp_date=jalali_to_iso(1405, 8, 23),
-                title="استعلام خرید سرور اختصاصی برای MahAI",
+                title="استعلام خرید تجهیزات ضروری دفتر (پرینتر، اسکنر و میز کار)",
                 description="پیش‌نویس — پس از استعلام قیمت، برای مصوبه تأمین مالی ارسال می‌شود",
                 base_amount=120_000_000, total_amount=120_000_000,
-                party_name="مرکز داده ابری", category_code="1301", asset_kind="asset",
-                project_id=4, appr_status="draft", _idx=idx)
+                party_name="فروشگاه تجهیزات اداری پیشرو", category_code="1301", asset_kind="asset",
+                project_id=5, appr_status="draft", _idx=idx)
 
     # اسناد همه هزینه‌های تأییدشده از طریق موتور واقعی تولید می‌شود
     def sys_user():
@@ -334,7 +336,7 @@ def seed(db: Session):
     # ---- مصوبه تأمین مالی — پوشش هزینه‌های راه‌اندازی و زیرساخت پلتفرم‌ها
     f = models.FundingRequest(
         no="F-1405-0001", title="تأمین مالی راه‌اندازی شرکت و زیرساخت پلتفرم‌ها",
-        description="مصوبه مؤسسین — پوشش هزینه‌های ثبت شرکت، زیرساخت (هاست، دامنه، SSL) و راه‌اندازی پلتفرم‌های درسیار۳۶۰، برنامه‌یار۳۶۰، دانش‌جویار۳۶۰ و MahAI",
+        description="مصوبه مؤسسین — پوشش هزینه‌های ثبت شرکت، مهر و لوازم ضروری، زیرساخت (هاست، دامنه، SSL) و راه‌اندازی پلتفرم‌های درسیار۳۶۰، برنامه‌یار۳۶۰، دانش‌جویار۳۶۰ و MahAI",
         amount=300_000_000, split_method="share",
         member_ids=[member_ids["M-1001"], member_ids["M-1002"], member_ids["M-1003"]],
         base_date="2025-03-21", due_date=jalali_to_iso(1405, 10, 1),
@@ -348,12 +350,12 @@ def seed(db: Session):
     create_commitments(db, f, rows)
 
     f2 = models.FundingRequest(
-        no="F-1405-0002", title="خرید سرور اختصاصی MahAI",
+        no="F-1405-0002", title="خرید تجهیزات ضروری دفتر شرکت",
         description="درخواست در انتظار تصویب مدیرعامل — تقسیم مساوی بین سهامداران",
         amount=120_000_000, split_method="equal",
         member_ids=[member_ids["M-1001"], member_ids["M-1002"], member_ids["M-1003"]],
         base_date="2025-03-21", due_date=jalali_to_iso(1405, 11, 1),
-        ftype="current", doc_ref="", project_id=4, status="pending", created_by="acc")
+        ftype="current", doc_ref="", project_id=5, status="pending", created_by="acc")
     db.add(f2)
     db.flush()
 
@@ -497,14 +499,15 @@ def seed(db: Session):
     # شمارنده سند خودکار توسط next_number ساخته شده و دست نمی‌زنیم
 
     log(db, {"username": "system"}, "seed", "system", None,
-        {"message": "داده نمونه اولیه ایجاد شد (سناریوی شرکت مه‌آی — نسخه ۲)"})
+        {"message": "داده نمونه اولیه ایجاد شد (سناریوی شرکت مه‌آی — نسخه ۳: هزینه‌های راه‌اندازی)"})
     db.commit()
     return True
 
 
 def _reset_demo_if_old():
-    """اگر پایگاه‌داده با سناریوی قدیمی (پارس‌داده) مقداردهی شده باشد، بازسازی می‌شود
-    تا سامانه با داده واقعی شرکت مه‌آی بالا بیاید. داده‌های کارکرد واقعی کاربران دست نمی‌خورد."""
+    """اگر پایگاه‌داده با سناریوی قدیمی (پارس‌داده یا دموی نسخه ۱.۴/۱.۵ با لوگو، پنل پیامک و سرور)
+    مقداردهی شده باشد، بازسازی می‌شود تا سامانه با تم جدید هزینه‌های راه‌اندازی بالا بیاید.
+    داده‌های کارکرد واقعی کاربران دست نمی‌خورد."""
     if not os_path_exists():
         return
     conn = sqlite3.connect(DB_PATH)
@@ -512,19 +515,28 @@ def _reset_demo_if_old():
         cur = conn.cursor()
         tables = {r[0] for r in cur.execute(
             "SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
-        if "settings" not in tables:
+        if "settings" not in tables or "expenses" not in tables:
             return
         row = cur.execute("SELECT company_name FROM settings WHERE id = 1").fetchone()
-        if row and OLD_SCENARIO_MARKER in (row[0] or ""):
-            for t in ("voucher_lines", "vouchers", "allocations", "offset_credits",
-                      "payments", "commitments", "funding_requests", "attachments",
-                      "expenses", "vlines", "audit_log", "accounts", "tafsils",
-                      "bank_accounts", "projects", "shares", "members", "users",
-                      "counters", "settings", "services", "wallet_tx"):
-                if t in tables:
-                    cur.execute(f"DELETE FROM {t}")
-            conn.commit()
+        is_old_parsdata = bool(row and OLD_SCENARIO_MARKER in (row[0] or ""))
+        # دموی نسخه ۱.۴/۱.۵: فاکتور LOGO-1405 (طراحی لوگو) در نسخه ۳ حذف شده است
+        old_exp = cur.execute(
+            "SELECT COUNT(*) FROM expenses WHERE invoice_no = ?", (OLD_SCENARIO_INVOICE,)).fetchone()
+        is_old_v15_demo = bool(old_exp and old_exp[0])
+        if not (is_old_parsdata or is_old_v15_demo):
+            return
+        for t in ("voucher_lines", "vouchers", "allocations", "offset_credits",
+                  "payments", "commitments", "funding_requests", "attachments",
+                  "expenses", "vlines", "audit_log", "accounts", "tafsils",
+                  "bank_accounts", "projects", "shares", "members", "users",
+                  "counters", "settings", "services", "wallet_tx"):
+            if t in tables:
+                cur.execute(f"DELETE FROM {t}")
+        conn.commit()
+        if is_old_parsdata:
             print("♻️ داده نمونه قدیمی (پارس‌داده) با سناریوی شرکت مه‌آی بازسازی می‌شود…")
+        else:
+            print("♻️ داده نمونه قدیمی نسخه ۱.۵ با تم هزینه‌های راه‌اندازی (هاست، ثبت شرکت، دامنه، SSL، مهر و لوازم ضروری) بازسازی می‌شود…")
     finally:
         conn.close()
 

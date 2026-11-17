@@ -1,4 +1,5 @@
 // داده نمونه اولیه نسخه پرتیبل — سناریوی واقعی شرکت مه‌آی (MahAI)؛ مبالغ ریال
+// تم داده آزمایشی: هزینه‌های راه‌اندازی شرکت — هاست، ثبت شرکت، دامنه، SSL و لوازم ضروری (مهر و…)
 import { hashPassword } from '../../lib/sha256.js'
 import { jalaliToIso, fiscalYearRange } from '../../lib/jalali.js'
 import { nextId, log } from './store.js'
@@ -131,7 +132,7 @@ export function seedDemo (db) {
     return e
   }
 
-  /* ---------- هزینه‌های واقعی شرکت مه‌آی ---------- */
+  /* ---------- هزینه‌های واقعی شرکت مه‌آی — تم: هزینه‌های راه‌اندازی (هاست، ثبت شرکت، دامنه، SSL، مهر و لوازم ضروری) ---------- */
 
   // ۱) اجاره هاست ماهانه — ۲٬۸۰۰٬۰۰۰ تومان در ماه (اردیبهشت تا آبان ۱۴۰۵)
   for (let jm = 2; jm <= 8; jm++) {
@@ -183,26 +184,26 @@ export function seedDemo (db) {
     category_code: '51102', project_id: 1, pay_status: 'paid', appr_status: 'approved',
     approved_by: 'ceo', invoice_no: 'SSL-1405',
   })
-  // و...) سایر هزینه‌های مرتبط با راه‌اندازی
+  // ۹) خرید لوازم ضروری شرکت — لوازم التحریر و ملزومات اداری
   addExp({
-    exp_date: jalaliToIso(1405, 5, 15), title: 'طراحی لوگو و هویت بصری برند MahAI',
-    description: 'طراحی لوگو، بنر و کیت هویت بصری پلتفرم‌ها',
-    base_amount: 20_000_000, party_name: 'استودیو طراحی گرافیک',
-    category_code: '5106', project_id: 4, pay_status: 'paid', appr_status: 'approved',
-    approved_by: 'ceo', invoice_no: 'LOGO-1405',
+    exp_date: jalaliToIso(1405, 5, 15), title: 'خرید لوازم التحریر و ملزومات اداری ضروری',
+    description: 'خرید لوازم التحریر، کاغذ، جوهر پرینتر و ملزومات ضروری دفتر برای شروع فعالیت شرکت',
+    base_amount: 30_000_000, party_name: 'فروشگاه لوازم اداری نگین',
+    category_code: '51032', project_id: 5, pay_status: 'paid', appr_status: 'approved',
+    approved_by: 'ceo', invoice_no: 'SUP-1405',
   })
-  // یک هزینه در انتظار تأیید و یک پیش‌نویس برای نمایش گردش
+  // ۱۰) خرید لوازم بایگانی اسناد ثبتی — در انتظار تأیید (نمایش گردش کار)
   addExp({
-    exp_date: jalaliToIso(1405, 8, 20), title: 'خرید پنل پیامک و سرویس OTP پلتفرم‌ها',
-    description: 'پنل ارسال پیامک تأییدیه و بازیابی رمز — فاکتور دریافت‌شده، در انتظار تأیید',
-    base_amount: 4_000_000, party_name: 'سامانه پیامک انبوه',
-    category_code: '51071', project_id: 5, appr_status: 'pending', invoice_no: 'SMS-1405',
+    exp_date: jalaliToIso(1405, 8, 20), title: 'خرید لوازم بایگانی و پوشه اسناد ثبتی شرکت',
+    description: 'کلاسور، پوشه و لوازم بایگانی اسناد ثبتی و مالی — فاکتور دریافت‌شده، در انتظار تأیید',
+    base_amount: 15_000_000, party_name: 'مرکز تخصصی لوازم بایگانی',
+    category_code: '51032', project_id: 5, appr_status: 'pending', invoice_no: 'ARC-1405',
   })
   addExp({
-    exp_date: jalaliToIso(1405, 8, 23), title: 'استعلام خرید سرور اختصاصی برای MahAI',
+    exp_date: jalaliToIso(1405, 8, 23), title: 'استعلام خرید تجهیزات ضروری دفتر (پرینتر، اسکنر و میز کار)',
     description: 'پیش‌نویس — پس از استعلام قیمت، برای مصوبه تأمین مالی ارسال می‌شود',
-    base_amount: 120_000_000, party_name: 'مرکز داده ابری',
-    category_code: '1301', asset_kind: 'asset', project_id: 4, appr_status: 'draft',
+    base_amount: 120_000_000, party_name: 'فروشگاه تجهیزات اداری پیشرو',
+    category_code: '1301', asset_kind: 'asset', project_id: 5, appr_status: 'draft',
   })
 
   // اسناد همه هزینه‌های تأییدشده با موتور واقعی
@@ -251,10 +252,10 @@ export function seedDemo (db) {
   })
 
   // مصوبه تأمین مالی — پوشش هزینه‌های راه‌اندازی شرکت و زیرساخت پلتفرم‌ها
-  // مجموع هزینه‌های ثبت‌شده ≈ ۲۸۷ میلیون ریال؛ مصوبه ۳۰۰ میلیون ریال (۳۰ میلیون تومان)
+  // مجموع هزینه‌های تأییدشده ≈ ۲۹۷ میلیون ریال؛ مصوبه ۳۰۰ میلیون ریال (۳۰ میلیون تومان)
   const f = {
     id: nextId(db, 'funding'), no: 'F-1405-0001', title: 'تأمین مالی راه‌اندازی شرکت و زیرساخت پلتفرم‌ها',
-    description: 'مصوبه مؤسسین — پوشش هزینه‌های ثبت شرکت، زیرساخت (هاست، دامنه، SSL) و راه‌اندازی پلتفرم‌های درسیار۳۶۰، برنامه‌یار۳۶۰، دانش‌جویار۳۶۰ و MahAI',
+    description: 'مصوبه مؤسسین — پوشش هزینه‌های ثبت شرکت، مهر و لوازم ضروری، زیرساخت (هاست، دامنه، SSL) و راه‌اندازی پلتفرم‌های درسیار۳۶۰، برنامه‌یار۳۶۰، دانش‌جویار۳۶۰ و MahAI',
     amount: 300_000_000, split_method: 'share',
     percents: {}, fixed_amounts: {},
     member_ids: [memberIds['M-1001'], memberIds['M-1002'], memberIds['M-1003']],
@@ -269,13 +270,13 @@ export function seedDemo (db) {
     db.commitments.push({ id: nextId(db, 'commitments'), funding_id: f.id, member_id: r.member_id, share_bp: r.share_bp, amount: r.amount, paid: 0 })
   }
   db.funding.push({
-    id: nextId(db, 'funding'), no: 'F-1405-0002', title: 'خرید سرور اختصاصی MahAI',
+    id: nextId(db, 'funding'), no: 'F-1405-0002', title: 'خرید تجهیزات ضروری دفتر شرکت',
     description: 'درخواست در انتظار تصویب مدیرعامل — تقسیم مساوی بین سهامداران',
     amount: 120_000_000,
     split_method: 'equal', percents: {}, fixed_amounts: {},
     member_ids: [memberIds['M-1001'], memberIds['M-1002'], memberIds['M-1003']],
     base_date: '2025-03-21', due_date: jalaliToIso(1405, 11, 1),
-    ftype: 'current', doc_ref: '', project_id: 4, status: 'pending',
+    ftype: 'current', doc_ref: '', project_id: 5, status: 'pending',
     created_by: 'acc', approved_by: '', approved_at: null, note: '', created_at: new Date().toISOString(),
   })
 
@@ -410,7 +411,7 @@ export function seedDemo (db) {
   db.counters['service:1405'] = 3
   db.counters['wallet:1405'] = 2
   db.counters['voucher:1405'] = db.vouchers.length
-  log(db, sys, 'seed', 'system', null, { message: 'داده نمونه اولیه ایجاد شد (سناریوی شرکت مه‌آی)' })
+  log(db, sys, 'seed', 'system', null, { message: 'داده نمونه اولیه ایجاد شد (سناریوی شرکت مه‌آی — نسخه ۳: هزینه‌های راه‌اندازی)' })
 }
 
 function postPay (db, p, user) {

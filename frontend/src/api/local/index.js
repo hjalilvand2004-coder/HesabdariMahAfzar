@@ -28,6 +28,7 @@ function migrateDB (db) {
   const reseed = () => {
     const nd = emptyDB()
     seedDemo(nd)
+    nd.meta.scenario = 3
     saveDB(nd)
     return nd
   }
@@ -35,6 +36,9 @@ function migrateDB (db) {
   if (!db || typeof db !== 'object' || !db.settings || typeof db.settings !== 'object') return reseed()
   // سناریوی نمونه قدیمی «پارس‌داده» (نسخه‌های ۱.۰ تا ۱.۲) → بازسازی با سناریوی مه‌آی
   if (String(db.settings.company_name || '').includes('پارس‌داده')) return reseed()
+  // سناریوی نمونه قدیمی نسخه ۱.۵ (طراحی لوگو، پنل پیامک، سرور) → بازسازی با تم هزینه‌های راه‌اندازی
+  // (هاست، ثبت شرکت، دامنه، SSL، مهر و لوازم ضروری) — نشانگر: فاکتور LOGO-1405 که در نسخه ۳ حذف شده است
+  if (Number((db.meta && db.meta.scenario) || 0) < 3 && (db.expenses || []).some(e => e.invoice_no === 'LOGO-1405')) return reseed()
 
   let touched = false
   for (const t of REQUIRED_TABLES) {
@@ -43,7 +47,7 @@ function migrateDB (db) {
   if (!db.seq || typeof db.seq !== 'object') { db.seq = {}; touched = true }
   if (!db.counters || typeof db.counters !== 'object') { db.counters = {}; touched = true }
   if (!db.meta || typeof db.meta !== 'object') { db.meta = { version: 1, createdAt: todayIso() }; touched = true }
-  if (db.meta.scenario !== 2) { db.meta.scenario = 2; touched = true }
+  if (db.meta.scenario !== 3) { db.meta.scenario = 3; touched = true }
   // فیلدهای پروفایل شرکت و ماتریس دسترسی
   for (const [k, v] of Object.entries(SETTINGS_DEFAULTS)) {
     if (db.settings[k] === undefined) { db.settings[k] = v; touched = true }
@@ -68,6 +72,7 @@ function db () {
     if (!_db) {
       _db = emptyDB()
       seedDemo(_db)
+      _db.meta.scenario = 3
       saveDB(_db)
     } else {
       _db = migrateDB(_db)
@@ -1591,6 +1596,7 @@ export function localCall (method, path, body = null, query = null) {
 export function resetDB () {
   _db = emptyDB()
   seedDemo(_db)
+  _db.meta.scenario = 3
   saveDB(_db)
 }
 export function importDB (json) {
