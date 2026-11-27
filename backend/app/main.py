@@ -17,8 +17,8 @@ from .routers import (auth, users, settings, members, accounts, expenses, fundin
 
 app = FastAPI(
     title="سامانه مالیار — مدیریت هزینه، تأمین مالی اعضا و حسابداری",
-    version="1.7.0",
-    description="FastAPI + React + SQLite | هسته دوبل با تولید خودکار اسناد + دستیار هوشمند نقش‌محور",
+    version="1.8.0",
+    description="FastAPI + React + SQLite | هسته دوبل با تولید خودکار اسناد + دستیار هوشمند نقش‌محور | آماده استقرار روی پورت ۸۰۹۹",
 )
 
 app.add_middleware(

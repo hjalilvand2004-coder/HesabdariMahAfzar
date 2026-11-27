@@ -1,0 +1,16 @@
+# استقرار سامانه مالیار روی پورت 8099
+# اجرا از ریشه مخزن:  docker compose -f deploy/docker-compose.yml up -d --build
+services:
+  maliyar:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: maliyar
+    ports:
+      - "8099:8099"
+    volumes:
+      - maliyar-data:/data
+    restart: unless-stopped
+
+volumes:
+  maliyar-data:
