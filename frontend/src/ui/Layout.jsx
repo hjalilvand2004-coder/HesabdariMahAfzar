@@ -3,6 +3,7 @@ import { useApp } from '../App.jsx'
 import { Icon } from './components.jsx'
 import { HelpButton } from './Help.jsx'
 import { GuideButton } from './Guide.jsx'
+import AssistantPanel from './Assistant.jsx'
 import { formatJalali, todayIso } from '../lib/jalali.js'
 import { roleLabels, permOf } from '../lib/format.js'
 
@@ -87,7 +88,7 @@ export default function Layout ({ route, title, children }) {
           )
         })}
         <div className="sidebar-foot">
-          {settings?.company_name || ''} — نسخه ۱.۵<br />
+          {settings?.company_name || ''} — نسخه ۱.۷<br />
           واحد نمایش: {unitLabel}
         </div>
       </aside>
@@ -119,6 +120,8 @@ export default function Layout ({ route, title, children }) {
           </div>
         </header>
         {children}
+        {/* دستیار هوشمند — شناور روی همه صفحه‌ها، راهنمای نقش‌محور */}
+        <AssistantPanel />
       </div>
     </div>
   )

@@ -362,5 +362,52 @@ check('تایم‌لاین شامل رویداد کیف پول', call('GET', '/a
   check('ترمیم: کیف پول قابل استفاده است', Array.isArray(w2.txs))
 }
 
+// ---------- دستیار هوشمند (نقش‌محور) ----------
+{
+  resetDB()
+  loginAs('ceo')
+  const ov = call('GET', '/api/assistant')
+  check('دستیار: خلاصه مدیرعامل', ov.role === 'ceo' && !!ov.role_label && !!ov.greeting)
+  check('دستیار: کارتابل تأیید در خلاصه مدیرعامل', ov.insights.some(i => i.id === 'approvals'))
+  check('دستیار: آمار و پرسش‌های پیشنهادی', ov.stats.length === 4 && ov.chips.length >= 3)
+  check('دستیار: راهنمای نقش و سلب مسئولیت', !!ov.role_guide && !!ov.disclaimer)
+  const r1 = call('POST', '/api/assistant/ask', { question: 'وضعیت سود و زیان شرکت چطور است؟' })
+  check('دستیار: پرسش سود و زیان', r1.answer.includes('سود') || r1.answer.includes('زیان'))
+  const r2 = call('POST', '/api/assistant/ask', { question: 'سطح دسترسی من چیست؟' })
+  check('دستیار: پرسش سطح دسترسی', r2.answer.includes('مدیرعامل'))
+  const r3 = call('POST', '/api/assistant/ask', { question: 'پرسش بی‌ربط xyz ۱۲۳' })
+  check('دستیار: پاسخ جایگزین پرسش نامفهوم', r3.answer.length > 50)
+  loginAs('ali')
+  const ova = call('GET', '/api/assistant')
+  check('دستیار: خلاصه عضو', ova.role === 'member')
+  const mc = ova.insights.find(i => i.id === 'member-commitment')
+  check('دستیار: وضعیت تعهد عضو', !!mc && mc.text.includes('تعهد شما'))
+  check('دستیار: عضو کارتابل تأیید ندارد', !ova.insights.some(i => i.id === 'approvals'))
+  check('دستیار: آمار عضو', ova.stats.length === 4 && ova.stats[0].label === 'تعهد من')
+  const r4 = call('POST', '/api/assistant/ask', { question: 'موجودی کیف پول من چقدر است؟' })
+  check('دستیار: پرسش کیف پول عضو', r4.answer.includes('کیف پول شما'))
+  // سطح دسترسی: حذف «کیف پول» از دسترسی عضو → کارت و لینک کیف پول حذف می‌شود
+  const matrix = JSON.parse(JSON.stringify(call('GET', '/api/settings').role_perms || {}))
+  matrix.member = ['my-account']
+  loginAs('admin')
+  call('PATCH', '/api/settings', { role_perms: matrix })
+  loginAs('ali')
+  const ova2 = call('GET', '/api/assistant')
+  check('دستیار: کارت کیف پول با حذف دسترسی حذف شد', !ova2.insights.some(i => i.id === 'member-wallet'))
+  const r5 = call('POST', '/api/assistant/ask', { question: 'کیف پول من؟' })
+  check('دستیار: پاسخ کیف پول بدون لینک غیرمجاز', !r5.links.some(l => l.path === '/wallet'))
+  // بازگردانی دسترسی پیش‌فرض عضو
+  matrix.member = ['my-account', 'wallet']
+  loginAs('admin')
+  call('PATCH', '/api/settings', { role_perms: matrix })
+  loginAs('ali')
+  const ova3 = call('GET', '/api/assistant')
+  check('دستیار: کارت کیف پول پس از بازگردانی دسترسی', ova3.insights.some(i => i.id === 'member-wallet'))
+  // پرسش خالی ممنوع
+  let emptyErr = false
+  try { call('POST', '/api/assistant/ask', { question: '' }) } catch (e) { emptyErr = e.status === 400 }
+  check('دستیار: پرسش خالی رد می‌شود', emptyErr)
+}
+
 console.log(`\nنتیجه موتور پرتیبل: ${pass} موفق / ${fail} ناموفق`)
 process.exit(fail ? 1 : 0)

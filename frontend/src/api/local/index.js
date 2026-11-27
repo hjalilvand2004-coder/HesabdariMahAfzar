@@ -2,6 +2,7 @@
 import { loadDB, saveDB, emptyDB, nextId, log, getSession, setSession, HttpError } from './store.js'
 import * as E from './engine.js'
 import { seedDemo } from './seed.js'
+import { buildOverview, askAssistant } from './assistant.js'
 import { hashPassword, verifyPassword, randomHex } from '../../lib/sha256.js'
 import { todayIso, currentJYear, isoToJalali } from '../../lib/jalali.js'
 import { DEFAULT_ROLE_PERMS } from '../../lib/format.js'
@@ -1471,6 +1472,15 @@ route('GET', '/api/reports/expense-drill', ({ query }) => {
 route('GET', '/api/dashboard', () => {
   require(['admin', 'finance', 'accountant', 'ceo', 'auditor'])
   return buildDashboard(db())
+})
+// دستیار هوشمند — برای همه نقش‌ها، متناسب با نقش و ماتریس سطح دسترسی
+route('GET', '/api/assistant', () => {
+  const u = require([])
+  return buildOverview(db(), u)
+})
+route('POST', '/api/assistant/ask', ({ body }) => {
+  const u = require([])
+  return askAssistant(db(), u, body?.question || '')
 })
 route('GET', '/api/analytics', () => {
   require(['admin', 'finance', 'accountant', 'ceo', 'auditor'])

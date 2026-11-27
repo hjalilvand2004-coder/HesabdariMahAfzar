@@ -12,12 +12,13 @@ from fastapi.staticfiles import StaticFiles
 from .database import Base, engine, SessionLocal
 from .seed import ensure_seed
 from .routers import (auth, users, settings, members, accounts, expenses, funding,
-                      payments, vouchers, reports, dashboard, services, wallet, meta)
+                      payments, vouchers, reports, dashboard, services, wallet, meta,
+                      assistant)
 
 app = FastAPI(
     title="سامانه مالیار — مدیریت هزینه، تأمین مالی اعضا و حسابداری",
-    version="1.5.0",
-    description="FastAPI + React + SQLite | هسته دوبل با تولید خودکار اسناد",
+    version="1.7.0",
+    description="FastAPI + React + SQLite | هسته دوبل با تولید خودکار اسناد + دستیار هوشمند نقش‌محور",
 )
 
 app.add_middleware(
@@ -32,7 +33,7 @@ async def value_error_handler(request, exc: ValueError):
     return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 for r in (auth, users, settings, members, accounts, expenses, funding,
-          payments, vouchers, reports, dashboard, services, wallet, meta):
+          payments, vouchers, reports, dashboard, services, wallet, meta, assistant):
     app.include_router(r.router)
 
 
